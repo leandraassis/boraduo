@@ -11,7 +11,13 @@ export type ProfileCardData = Pick<
 const chipClass =
   'inline-flex items-center gap-1.5 rounded-lg border border-line-strong bg-canvas/70 px-2.5 py-1 text-xs font-medium tracking-[0.02em] backdrop-blur'
 
-export function ProfileCard({ profile, className = '' }: { profile: ProfileCardData; className?: string }) {
+interface ProfileCardProps {
+  profile: ProfileCardData
+  className?: string
+  fill?: boolean
+}
+
+export function ProfileCard({ profile, className = '', fill = false }: ProfileCardProps) {
   const [failedUrl, setFailedUrl] = useState<string | null>(null)
 
   const rank = RANK_INFO[profile.rank]
@@ -22,15 +28,16 @@ export function ProfileCard({ profile, className = '' }: { profile: ProfileCardD
 
   return (
     <article
-      className={`overflow-hidden rounded-2xl border border-line bg-surface ${className}`}
+      className={`overflow-hidden rounded-2xl border border-line bg-surface ${fill ? 'h-full' : ''} ${className}`}
       aria-label={`Perfil de ${profile.username}`}
     >
-      <div className="relative aspect-[4/5] w-full">
+      <div className={`relative w-full ${fill ? 'h-full' : 'aspect-[4/5]'}`}>
         {showImage ? (
           <img
             src={profile.avatar_url ?? undefined}
             alt={`Avatar de ${profile.username}`}
             className="absolute inset-0 h-full w-full object-cover"
+            draggable={false}
             onError={() => setFailedUrl(profile.avatar_url)}
           />
         ) : (

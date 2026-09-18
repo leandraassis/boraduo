@@ -100,6 +100,30 @@ export function CheckIcon(props: IconProps) {
   )
 }
 
+export function FunnelIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M3 5h18l-7 8.5V19l-4 2v-7.5z" />
+    </Icon>
+  )
+}
+
+export function CloseIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M6 6l12 12M18 6 6 18" />
+    </Icon>
+  )
+}
+
+export function HeartIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 20s-8-4.9-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 9c0 6.1-8 11-8 11z" />
+    </Icon>
+  )
+}
+
 export function BoltIcon(props: IconProps) {
   return (
     <Icon {...props}>

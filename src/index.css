@@ -17,6 +17,110 @@
 
   --shadow-glow-brand: 0 4px 20px rgba(124, 58, 237, 0.3);
   --shadow-glow-ready: 0 0 24px rgba(16, 185, 129, 0.35);
+  --shadow-glow-danger: 0 0 24px rgba(239, 68, 68, 0.35);
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.sheet-enter {
+  animation: sheet-up 220ms ease-out;
+}
+
+@media (min-width: 768px) {
+  .sheet-enter {
+    animation: pop-in 150ms ease-out;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet-enter {
+    animation: none;
+  }
+}
+
+/* Mantém o evento transitionend (usado para concluir o swipe), mas sem animação perceptível. */
+@media (prefers-reduced-motion: reduce) {
+  .swipe-card {
+    transition-duration: 1ms !important;
+  }
+}
+
+/* Slider duplo de rank: dois <input type="range"> sobrepostos; so os polegares recebem o ponteiro. */
+.rank-range {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  pointer-events: none;
+  margin: 0;
+}
+
+.rank-range::-webkit-slider-runnable-track {
+  -webkit-appearance: none;
+  background: transparent;
+  height: 24px;
+}
+
+.rank-range::-moz-range-track {
+  background: transparent;
+  height: 24px;
+}
+
+.rank-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  pointer-events: auto;
+  height: 22px;
+  width: 22px;
+  border-radius: 9999px;
+  background: var(--color-ink);
+  border: 3px solid var(--color-brand);
+  box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.2);
+  cursor: grab;
+}
+
+.rank-range::-moz-range-thumb {
+  box-sizing: border-box;
+  pointer-events: auto;
+  height: 22px;
+  width: 22px;
+  border-radius: 9999px;
+  background: var(--color-ink);
+  border: 3px solid var(--color-brand);
+  box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.2);
+  cursor: grab;
+}
+
+.rank-range:focus,
+.rank-range:focus-visible {
+  outline: none;
+}
+
+.rank-range:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--color-match);
+  outline-offset: 2px;
+}
+
+.rank-range:focus-visible::-moz-range-thumb {
+  outline: 2px solid var(--color-match);
+  outline-offset: 2px;
 }
 
 html,

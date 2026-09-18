@@ -366,6 +366,27 @@ export type Database = {
         Args: { p_target_id: string }
         Returns: undefined
       }
+      fn_current_user_is_active: { Args: never; Returns: boolean }
+      fn_current_user_is_admin: { Args: never; Returns: boolean }
+      fn_get_swipe_deck: {
+        Args: {
+          p_exclude_ids?: string[]
+          p_limit?: number
+          p_match_schedule?: boolean
+          p_max_rank?: Database["public"]["Enums"]["rank_type"]
+          p_min_rank?: Database["public"]["Enums"]["rank_type"]
+          p_roles?: Database["public"]["Enums"]["role_type"][]
+        }
+        Returns: {
+          avatar_url: string | null
+          bio: string | null
+          id: string
+          main_agent: string
+          rank: Database["public"]["Enums"]["rank_type"]
+          role: Database["public"]["Enums"]["role_type"]
+          username: string
+        }[]
+      }
       fn_pass_swipe: { Args: { p_swiped_id: string }; Returns: undefined }
       fn_report_user: {
         Args: {
