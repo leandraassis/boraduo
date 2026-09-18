@@ -1,17 +1,15 @@
 import type { ComponentType, ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
+import { useNotifications } from '../contexts/notifications'
 import { AvailabilityDot } from './AvailabilityDot'
 import { focusRing } from './formStyles'
 import { BellIcon, ChatIcon, CompassIcon, UserIcon } from './icons'
-
-// Fase 7: trocar por a contagem real de notificações não lidas.
-const UNREAD_NOTIFICATIONS = 0
 
 function UnreadBadge({ count }: { count: number }) {
   if (count <= 0) return null
   return (
     <span className="absolute -top-1.5 -right-2.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand px-1 text-[10px] leading-none font-bold text-ink ring-2 ring-canvas">
-      <span className="sr-only">{count} não lidas</span>
+      <span className="sr-only">{count === 1 ? '1 não lida' : `${count} não lidas`}</span>
       <span aria-hidden="true">{count > 9 ? '9+' : count}</span>
     </span>
   )
@@ -21,30 +19,31 @@ interface NavItem {
   to: string
   label: string
   icon: ComponentType<{ className?: string }>
-  // Espaço reservado no canto do ícone (badge de não lidas, ponto de disponibilidade).
-  adornment?: ReactNode
 }
 
 const ITEMS: NavItem[] = [
   { to: '/app/discover', label: 'Descobrir', icon: CompassIcon },
   { to: '/app/matches', label: 'Matches', icon: ChatIcon },
-  {
-    to: '/app/notifications',
-    label: 'Notificações',
-    icon: BellIcon,
-    adornment: <UnreadBadge count={UNREAD_NOTIFICATIONS} />,
-  },
-  { to: '/app/profile', label: 'Perfil', icon: UserIcon, adornment: <AvailabilityDot /> },
+  { to: '/app/notifications', label: 'Notificações', icon: BellIcon },
+  { to: '/app/profile', label: 'Perfil', icon: UserIcon },
 ]
 
 export function BottomNav() {
+  const { unreadCount } = useNotifications()
+
+  // Canto do ícone: badge de não lidas em Notificações, ponto de disponibilidade em Perfil.
+  const adornments: Record<string, ReactNode> = {
+    '/app/notifications': <UnreadBadge count={unreadCount} />,
+    '/app/profile': <AvailabilityDot />,
+  }
+
   return (
     <nav
       aria-label="Navegação principal"
       className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-canvas/85 pb-[env(safe-area-inset-bottom)] backdrop-blur-[20px]"
     >
       <ul className="mx-auto flex h-16 w-full max-w-[480px]">
-        {ITEMS.map(({ to, label, icon: Icon, adornment }) => (
+        {ITEMS.map(({ to, label, icon: Icon }) => (
           <li key={to} className="flex-1">
             <NavLink
               to={to}
@@ -64,7 +63,7 @@ export function BottomNav() {
                   )}
                   <span className="relative">
                     <Icon className={`h-6 w-6 transition ${isActive ? 'text-brand-soft' : ''}`} />
-                    {adornment}
+                    {adornments[to]}
                   </span>
                   {label}
                 </>

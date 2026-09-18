@@ -408,6 +408,19 @@ export type Database = {
         }[]
       }
       fn_mark_match_read: { Args: { p_match_id: string }; Returns: undefined }
+      fn_get_notifications: {
+        Args: { p_limit?: number }
+        Returns: {
+          created_at: string
+          id: string
+          match_id: string | null
+          other_avatar_url: string | null
+          other_id: string | null
+          other_username: string | null
+          read: boolean
+          type: Database["public"]["Enums"]["notification_type"]
+        }[]
+      }
       fn_get_swipe_deck: {
         Args: {
           p_exclude_ids?: string[]

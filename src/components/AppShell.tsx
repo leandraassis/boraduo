@@ -3,6 +3,7 @@ import { useMediaQuery } from '../hooks/useMediaQuery'
 import { AvailabilityDot } from './AvailabilityDot'
 import { AvailabilityProvider } from './AvailabilityProvider'
 import { BottomNav } from './BottomNav'
+import { NotificationsProvider } from './NotificationsProvider'
 import { ToastProvider } from './ToastProvider'
 
 // Layout persistente de /app/*: mantém disponibilidade, presença e toast montados entre telas e
@@ -18,12 +19,14 @@ export function AppShell() {
     <div className="contents" style={navHidden ? ({ '--app-nav-h': '0px' } as React.CSSProperties) : undefined}>
       <ToastProvider>
         <AvailabilityProvider>
-          <div className="flex min-h-dvh flex-col bg-canvas">
-            <div className="flex flex-1 flex-col pb-(--app-nav-h)">
-              <Outlet />
+          <NotificationsProvider>
+            <div className="flex min-h-dvh flex-col bg-canvas">
+              <div className="flex flex-1 flex-col pb-(--app-nav-h)">
+                <Outlet />
+              </div>
+              {navHidden ? <AvailabilityDot className="fixed top-1.5 right-1.5 z-30" /> : <BottomNav />}
             </div>
-            {navHidden ? <AvailabilityDot className="fixed top-1.5 right-1.5 z-30" /> : <BottomNav />}
-          </div>
+          </NotificationsProvider>
         </AvailabilityProvider>
       </ToastProvider>
     </div>
