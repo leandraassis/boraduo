@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppGuard } from './components/AppGuard'
+import { AppShell } from './components/AppShell'
 import { AuthGuard } from './components/AuthGuard'
 import { ChatPlaceholder } from './components/chat/ChatStates'
 import { Banned } from './pages/Banned'
@@ -28,48 +29,21 @@ function App() {
       />
 
       <Route
-        path="/app"
         element={
           <AppGuard>
-            <Navigate to="/app/discover" replace />
-          </AppGuard>
-        }
-      />
-      <Route
-        path="/app/discover"
-        element={
-          <AppGuard>
-            <Discover />
-          </AppGuard>
-        }
-      />
-      <Route
-        path="/app/matches"
-        element={
-          <AppGuard>
-            <Matches />
+            <AppShell />
           </AppGuard>
         }
       >
-        <Route index element={<ChatPlaceholder />} />
-        <Route path=":matchId" element={<Chat />} />
+        <Route path="/app" element={<Navigate to="/app/discover" replace />} />
+        <Route path="/app/discover" element={<Discover />} />
+        <Route path="/app/matches" element={<Matches />}>
+          <Route index element={<ChatPlaceholder />} />
+          <Route path=":matchId" element={<Chat />} />
+        </Route>
+        <Route path="/app/notifications" element={<Notifications />} />
+        <Route path="/app/profile" element={<Profile />} />
       </Route>
-      <Route
-        path="/app/notifications"
-        element={
-          <AppGuard>
-            <Notifications />
-          </AppGuard>
-        }
-      />
-      <Route
-        path="/app/profile"
-        element={
-          <AppGuard>
-            <Profile />
-          </AppGuard>
-        }
-      />
 
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>

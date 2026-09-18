@@ -9,10 +9,18 @@ interface FilterControlProps {
   onOpenChange: (open: boolean) => void
   filters: DeckFilters
   mySchedule: ScheduleWindow[]
+  showSchedule?: boolean
   onApply: (filters: DeckFilters) => void
 }
 
-export function FilterControl({ open, onOpenChange, filters, mySchedule, onApply }: FilterControlProps) {
+export function FilterControl({
+  open,
+  onOpenChange,
+  filters,
+  mySchedule,
+  showSchedule = true,
+  onApply,
+}: FilterControlProps) {
   const active = !isDefaultFilters(filters)
 
   return (
@@ -40,6 +48,7 @@ export function FilterControl({ open, onOpenChange, filters, mySchedule, onApply
         <FilterSheet
           filters={filters}
           mySchedule={mySchedule}
+          showSchedule={showSchedule}
           onApply={(next) => {
             onApply(next)
             onOpenChange(false)

@@ -55,6 +55,11 @@ function ConversationItem({ conversation, selected, currentUserId }: Conversatio
               Swipe
             </span>
           )}
+          {conversation.origin === 'quick_start' && (
+            <span className="rounded-md bg-match/15 px-1.5 py-0.5 text-[10px] leading-3 font-semibold tracking-[0.04em] text-match uppercase">
+              Quick
+            </span>
+          )}
           <span className="inline-flex items-center gap-1 text-xs text-ink-muted">
             <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: rank.color }} aria-hidden="true" />
             {rank.label}

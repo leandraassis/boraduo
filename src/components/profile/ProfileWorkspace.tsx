@@ -172,7 +172,7 @@ export function ProfileWorkspace({ profile, onProfileChange }: ProfileWorkspaceP
           </header>
 
           <div className="lg:w-[460px] lg:shrink-0">
-            <AvailabilityPanel profile={profile} onProfileChange={onProfileChange} />
+            <AvailabilityPanel />
           </div>
         </div>
 

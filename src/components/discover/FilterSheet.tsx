@@ -23,6 +23,7 @@ import { RankRangeSlider } from './RankRangeSlider'
 interface FilterSheetProps {
   filters: DeckFilters
   mySchedule: ScheduleWindow[]
+  showSchedule?: boolean
   onApply: (filters: DeckFilters) => void
   onClose: () => void
 }
@@ -33,7 +34,7 @@ function rangeLabel(filters: DeckFilters): string {
   return `${RANK_INFO[filters.minRank].label} – ${RANK_INFO[filters.maxRank].label}`
 }
 
-export function FilterSheet({ filters, mySchedule, onApply, onClose }: FilterSheetProps) {
+export function FilterSheet({ filters, mySchedule, showSchedule = true, onApply, onClose }: FilterSheetProps) {
   const [draft, setDraft] = useState<DeckFilters>(filters)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const hasSchedule = mySchedule.length > 0
@@ -135,33 +136,35 @@ export function FilterSheet({ filters, mySchedule, onApply, onClose }: FilterShe
           />
         </section>
 
-        <section className="mb-6 flex items-start justify-between gap-4 rounded-xl border border-line bg-field/60 p-4">
-          <div className="min-w-0">
-            <p id="filter-schedule-label" className="text-sm font-semibold text-ink">
-              Usar meu horário como filtro
-            </p>
-            <p id="filter-schedule-hint" className="mt-1 text-xs leading-4 text-ink-muted">
-              {hasSchedule ? (
-                <>Mostra só quem joga em horários em comum com os seus ({scheduleNames}).</>
-              ) : (
-                <>
-                  Defina seus horários no{' '}
-                  <Link to="/app/profile" className="font-medium text-match hover:underline">
-                    perfil
-                  </Link>{' '}
-                  para usar este filtro.
-                </>
-              )}
-            </p>
-          </div>
-          <Switch
-            checked={draft.useMySchedule && hasSchedule}
-            onChange={(useMySchedule) => setDraft((d) => ({ ...d, useMySchedule }))}
-            labelledBy="filter-schedule-label"
-            describedBy="filter-schedule-hint"
-            disabled={!hasSchedule}
-          />
-        </section>
+        {showSchedule && (
+          <section className="mb-6 flex items-start justify-between gap-4 rounded-xl border border-line bg-field/60 p-4">
+            <div className="min-w-0">
+              <p id="filter-schedule-label" className="text-sm font-semibold text-ink">
+                Usar meu horário como filtro
+              </p>
+              <p id="filter-schedule-hint" className="mt-1 text-xs leading-4 text-ink-muted">
+                {hasSchedule ? (
+                  <>Mostra só quem joga em horários em comum com os seus ({scheduleNames}).</>
+                ) : (
+                  <>
+                    Defina seus horários no{' '}
+                    <Link to="/app/profile" className="font-medium text-match hover:underline">
+                      perfil
+                    </Link>{' '}
+                    para usar este filtro.
+                  </>
+                )}
+              </p>
+            </div>
+            <Switch
+              checked={draft.useMySchedule && hasSchedule}
+              onChange={(useMySchedule) => setDraft((d) => ({ ...d, useMySchedule }))}
+              labelledBy="filter-schedule-label"
+              describedBy="filter-schedule-hint"
+              disabled={!hasSchedule}
+            />
+          </section>
+        )}
 
         <div className="flex gap-3">
           <button
@@ -173,7 +176,7 @@ export function FilterSheet({ filters, mySchedule, onApply, onClose }: FilterShe
           </button>
           <button
             type="button"
-            onClick={() => onApply({ ...draft, useMySchedule: draft.useMySchedule && hasSchedule })}
+            onClick={() => onApply({ ...draft, useMySchedule: showSchedule && draft.useMySchedule && hasSchedule })}
             className={`${primaryButtonClass} flex-1`}
           >
             Aplicar

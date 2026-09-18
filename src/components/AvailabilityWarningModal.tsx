@@ -50,7 +50,7 @@ export function AvailabilityWarningModal({ onConfirm, onCancel }: AvailabilityWa
         </div>
 
         <h2 id="availability-warning-title" className="text-lg leading-6 font-semibold tracking-[-0.01em] text-ink">
-          Antes de ficar disponível
+          Antes de ativar
         </h2>
         <p id="availability-warning-description" className="mt-2 text-sm leading-5 text-ink-muted">
           Qualquer jogador disponível pode te chamar direto, sem pedir aceite antes.

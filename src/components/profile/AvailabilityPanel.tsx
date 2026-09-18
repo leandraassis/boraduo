@@ -1,53 +1,7 @@
-import { useState } from 'react'
-import { hasSeenAvailabilityWarning, markAvailabilityWarningSeen } from '../../lib/availabilityWarning'
-import { supabase } from '../../lib/supabase'
-import type { Tables } from '../../types/database'
-import { AvailabilityWarningModal } from '../AvailabilityWarningModal'
+import { useAvailability } from '../../contexts/availability'
 
-interface AvailabilityPanelProps {
-  profile: Tables<'profiles'>
-  onProfileChange: (profile: Tables<'profiles'>) => void
-}
-
-export function AvailabilityPanel({ profile, onProfileChange }: AvailabilityPanelProps) {
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [showWarning, setShowWarning] = useState(false)
-
-  const available = profile.is_available
-
-  async function persist(next: boolean) {
-    setSaving(true)
-    setError(null)
-    const { data, error: updateError } = await supabase
-      .from('profiles')
-      .update({ is_available: next })
-      .eq('id', profile.id)
-      .select()
-      .single()
-    setSaving(false)
-
-    if (updateError) {
-      setError('Não foi possível atualizar sua disponibilidade. Tente novamente.')
-      return
-    }
-    onProfileChange(data)
-  }
-
-  function handleToggle() {
-    if (saving) return
-    if (!available && !hasSeenAvailabilityWarning()) {
-      setShowWarning(true)
-      return
-    }
-    void persist(!available)
-  }
-
-  function handleConfirmWarning() {
-    markAvailabilityWarningSeen()
-    setShowWarning(false)
-    void persist(true)
-  }
+export function AvailabilityPanel() {
+  const { isAvailable: available, loaded, saving, error, requestToggle } = useAvailability()
 
   return (
     <section
@@ -61,8 +15,8 @@ export function AvailabilityPanel({ profile, onProfileChange }: AvailabilityPane
           role="switch"
           aria-checked={available}
           aria-labelledby="availability-title"
-          disabled={saving}
-          onClick={handleToggle}
+          disabled={saving || !loaded}
+          onClick={requestToggle}
           className={`relative h-8 w-14 shrink-0 cursor-pointer rounded-full border transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-match disabled:cursor-wait disabled:opacity-60 ${
             available ? 'border-ready bg-ready' : 'border-line-strong bg-field'
           }`}
@@ -95,10 +49,6 @@ export function AvailabilityPanel({ profile, onProfileChange }: AvailabilityPane
         <p role="alert" className="mt-3 text-sm text-danger">
           {error}
         </p>
-      )}
-
-      {showWarning && (
-        <AvailabilityWarningModal onConfirm={handleConfirmWarning} onCancel={() => setShowWarning(false)} />
       )}
     </section>
   )

@@ -368,6 +368,26 @@ export type Database = {
       }
       fn_current_user_is_active: { Args: never; Returns: boolean }
       fn_current_user_is_admin: { Args: never; Returns: boolean }
+      fn_get_available_now: {
+        Args: {
+          p_cursor_created_at?: string
+          p_cursor_id?: string
+          p_limit?: number
+          p_max_rank?: Database["public"]["Enums"]["rank_type"]
+          p_min_rank?: Database["public"]["Enums"]["rank_type"]
+          p_online_ids: string[]
+          p_roles?: Database["public"]["Enums"]["role_type"][]
+        }
+        Returns: {
+          avatar_url: string | null
+          created_at: string
+          id: string
+          main_agent: string
+          rank: Database["public"]["Enums"]["rank_type"]
+          role: Database["public"]["Enums"]["role_type"]
+          username: string
+        }[]
+      }
       fn_get_conversations: {
         Args: never
         Returns: {
