@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useNotifications } from '../contexts/notifications'
 import { fetchNotifications, type AppNotification } from '../lib/notifications'
 
 interface ListState {
@@ -8,6 +9,7 @@ interface ListState {
 }
 
 export function useNotificationsList() {
+  const { changeVersion } = useNotifications()
   const [reload, setReload] = useState(0)
   const [state, setState] = useState<ListState>({ reload: 0, status: 'loading', items: [] })
 
@@ -47,6 +49,20 @@ export function useNotificationsList() {
       document.removeEventListener('visibilitychange', onFocus)
     }
   }, [reload])
+
+  // Notificação nova (ou lida em outra aba) chegou por Realtime: atualiza a lista aberta em silêncio.
+  useEffect(() => {
+    if (changeVersion === 0) return
+    let cancelled = false
+    fetchNotifications()
+      .then((items) => {
+        if (!cancelled) setState((s) => ({ ...s, status: 'ready', items }))
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [changeVersion])
 
   const retry = useCallback(() => setReload((n) => n + 1), [])
 

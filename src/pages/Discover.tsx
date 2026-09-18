@@ -43,7 +43,11 @@ export function Discover() {
 
       <main className="mx-auto flex w-full max-w-[440px] flex-1 flex-col px-4 pb-6">
         {isSwipe ? (
-          <SwipeMode filters={swipeFilters} onOpenFilters={() => setFiltersOpen(true)} />
+          <SwipeMode
+            filters={swipeFilters}
+            me={profile ? { username: profile.username, avatarUrl: profile.avatar_url, rank: profile.rank } : null}
+            onOpenFilters={() => setFiltersOpen(true)}
+          />
         ) : (
           <AvailableNowList filters={availableFilters} onOpenFilters={() => setFiltersOpen(true)} />
         )}

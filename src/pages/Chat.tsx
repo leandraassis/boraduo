@@ -6,6 +6,7 @@ import { MessageList } from '../components/chat/MessageList'
 import { ChatError, ChatNotFound, ChatSkeleton, ReadOnlyNotice } from '../components/chat/ChatStates'
 import type { MatchesOutletContext } from '../components/matches/context'
 import { useChatMessages } from '../hooks/useChatMessages'
+import { useMessageRealtime } from '../hooks/useMessageRealtime'
 import { markMatchRead, sendMessage, SendMessageError, type Conversation } from '../lib/chat'
 
 interface ChatViewProps {
@@ -17,7 +18,7 @@ interface ChatViewProps {
 function ChatView({ conversation, currentUserId, patchConversation }: ChatViewProps) {
   const { matchId } = conversation
   const chat = useChatMessages(matchId)
-  const { messages, addMessage, replaceMessage, patchMessage } = chat
+  const { messages, addMessage, receiveMessage, reloadSilently, replaceMessage, patchMessage } = chat
 
   useEffect(() => {
     let cancelled = false
@@ -30,6 +31,23 @@ function ChatView({ conversation, currentUserId, patchConversation }: ChatViewPr
       cancelled = true
     }
   }, [matchId, patchConversation])
+
+  // Mensagens próprias seguem pelo fluxo de envio (otimista + replace); só as do outro entram por aqui.
+  useMessageRealtime(matchId, {
+    onInsert: (message) => {
+      if (message.senderId === currentUserId) return
+      receiveMessage(message)
+      patchConversation(matchId, {
+        lastMessage: { content: message.content, senderId: message.senderId, createdAt: message.createdAt },
+        lastMessageAt: message.createdAt,
+      })
+      // A conversa está aberta: a mensagem já foi vista.
+      markMatchRead(matchId)
+        .then(() => patchConversation(matchId, { unread: false }))
+        .catch(() => undefined)
+    },
+    onSubscribed: reloadSilently,
+  })
 
   const deliver = useCallback(
     async (pendingId: string, content: string) => {

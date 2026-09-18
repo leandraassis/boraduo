@@ -3,14 +3,17 @@ import { useLocation } from 'react-router-dom'
 import { NotificationsContext, type NotificationsContextValue } from '../contexts/notifications'
 import { useSession } from '../hooks/useSession'
 import { fetchUnreadCount } from '../lib/notifications'
+import { supabase } from '../lib/supabase'
 
-// Contagem de não lidas para o badge da bottom nav. Sem Realtime (Fase 7.2): recarrega ao montar o
-// shell, a cada navegação e quando a aba volta a ficar em foco.
+// Contagem de não lidas para o badge da bottom nav. Realtime em `notifications` (filtrado por user_id,
+// RLS incluída) mantém o badge vivo; recarregar ao montar, navegar e voltar ao foco continua como rede
+// de segurança para eventos perdidos.
 export function NotificationsProvider({ children }: { children: ReactNode }) {
   const { session } = useSession()
   const userId = session?.user.id
   const { pathname } = useLocation()
   const [unreadCount, setUnreadCount] = useState(0)
+  const [changeVersion, setChangeVersion] = useState(0)
   const latestRequest = useRef(0)
 
   const refreshUnreadCount = useCallback(() => {
@@ -47,9 +50,39 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     }
   }, [userId, refreshUnreadCount])
 
+  useEffect(() => {
+    if (!userId) return
+    let cancelled = false
+    let subscribedBefore = false
+
+    // Reconta no servidor em vez de somar +1: o count é a fonte da verdade e evita drift.
+    function onChange() {
+      if (cancelled) return
+      setChangeVersion((v) => v + 1)
+      void refreshUnreadCount()
+    }
+
+    const filter = `user_id=eq.${userId}`
+    const channel = supabase
+      .channel(`notifications:${userId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter }, onChange)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notifications', filter }, onChange)
+      .subscribe((status) => {
+        if (status !== 'SUBSCRIBED' || cancelled) return
+        // Ao reconectar, o que chegou durante a queda não veio por evento.
+        if (subscribedBefore) onChange()
+        subscribedBefore = true
+      })
+
+    return () => {
+      cancelled = true
+      void supabase.removeChannel(channel)
+    }
+  }, [userId, refreshUnreadCount])
+
   const value = useMemo<NotificationsContextValue>(
-    () => ({ unreadCount, refreshUnreadCount, adjustUnreadCount }),
-    [unreadCount, refreshUnreadCount, adjustUnreadCount],
+    () => ({ unreadCount, changeVersion, refreshUnreadCount, adjustUnreadCount }),
+    [unreadCount, changeVersion, refreshUnreadCount, adjustUnreadCount],
   )
 
   return <NotificationsContext.Provider value={value}>{children}</NotificationsContext.Provider>

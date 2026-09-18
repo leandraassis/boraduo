@@ -34,9 +34,33 @@ export function useChatMessages(matchId: string) {
     setState((s) => ({ ...s, messages: [...s.messages, message] }))
   }, [])
 
+  // Se a mensagem já chegou por Realtime/recarga antes de o envio resolver, só descarta a pendente.
   const replaceMessage = useCallback((id: string, message: ChatMessage) => {
-    setState((s) => ({ ...s, messages: s.messages.map((m) => (m.id === id ? message : m)) }))
+    setState((s) => ({
+      ...s,
+      messages: s.messages.some((m) => m.id === message.id)
+        ? s.messages.filter((m) => m.id !== id)
+        : s.messages.map((m) => (m.id === id ? message : m)),
+    }))
   }, [])
+
+  // Mensagem vinda do Realtime; ignora se o id já está na conversa.
+  const receiveMessage = useCallback((message: ChatMessage) => {
+    setState((s) => (s.messages.some((m) => m.id === message.id) ? s : { ...s, messages: [...s.messages, message] }))
+  }, [])
+
+  // Reconcilia com o banco sem piscar skeleton, mantendo as mensagens ainda enviando/falhas.
+  const reloadSilently = useCallback(() => {
+    fetchMessages(matchId)
+      .then(({ messages, truncated }) => {
+        setState((s) => ({
+          status: 'ready',
+          truncated,
+          messages: [...messages, ...s.messages.filter((m) => m.status !== undefined)],
+        }))
+      })
+      .catch(() => undefined)
+  }, [matchId])
 
   const patchMessage = useCallback((id: string, patch: Partial<ChatMessage>) => {
     setState((s) => ({ ...s, messages: s.messages.map((m) => (m.id === id ? { ...m, ...patch } : m)) }))
@@ -48,6 +72,8 @@ export function useChatMessages(matchId: string) {
     truncated: state.truncated,
     retry,
     addMessage,
+    receiveMessage,
+    reloadSilently,
     replaceMessage,
     patchMessage,
   }
