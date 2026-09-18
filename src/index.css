@@ -21,6 +21,11 @@
   --shadow-glow-danger: 0 0 24px rgba(239, 68, 68, 0.35);
 }
 
+:root {
+  /* Altura da bottom nav do /app/* (conteúdo + safe area); páginas e toast reservam esse espaço. */
+  --app-nav-h: calc(4rem + env(safe-area-inset-bottom));
+}
+
 @keyframes sheet-up {
   from {
     transform: translateY(100%);

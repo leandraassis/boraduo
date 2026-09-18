@@ -27,7 +27,7 @@ export function Discover() {
   }
 
   return (
-    <div className="flex min-h-dvh flex-col bg-canvas font-inter text-ink">
+    <div className="flex flex-1 flex-col bg-canvas font-inter text-ink">
       <header className="mx-auto flex w-full max-w-[440px] items-center gap-3 px-4 pt-6 pb-4">
         <h1 className="sr-only">Descobrir</h1>
         <ModeSwitch mode={mode} onChange={changeMode} />
@@ -41,7 +41,7 @@ export function Discover() {
         />
       </header>
 
-      <main className="mx-auto flex w-full max-w-[440px] flex-1 flex-col px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+      <main className="mx-auto flex w-full max-w-[440px] flex-1 flex-col px-4 pb-6">
         {isSwipe ? (
           <SwipeMode filters={swipeFilters} onOpenFilters={() => setFiltersOpen(true)} />
         ) : (

@@ -5,7 +5,7 @@ import { useSession } from '../hooks/useSession'
 
 function ProfileShell({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen bg-canvas font-inter text-ink">
+    <div className="flex-1 bg-canvas font-inter text-ink">
       <div className="mx-auto w-full max-w-[480px] px-4 pt-6 pb-12 md:max-w-[840px] lg:max-w-[1180px]">
         {children}
       </div>

@@ -21,8 +21,8 @@ export function Matches() {
   )
 
   return (
-    <div className="bg-canvas font-inter text-ink">
-      <div className="mx-auto flex h-dvh w-full max-w-[1180px] lg:gap-6 lg:p-6">
+    <div className="flex-1 bg-canvas font-inter text-ink">
+      <div className="mx-auto flex h-[calc(100dvh-var(--app-nav-h))] w-full max-w-[1180px] lg:gap-6 lg:p-6">
         <aside className={`${inChat ? 'hidden lg:flex' : 'flex'} ${paneClass} w-full lg:w-[380px] lg:shrink-0`}>
           <header className="px-4 pt-6 pb-4 lg:px-5">
             <h1 className="text-2xl leading-8 font-bold tracking-[-0.02em]">Matches</h1>

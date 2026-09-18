@@ -158,3 +158,21 @@ export function BoltIcon(props: IconProps) {
     </Icon>
   )
 }
+
+export function CompassIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="m15.5 8.5-2 5-5 2 2-5z" />
+    </Icon>
+  )
+}
+
+export function BellIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z" />
+      <path d="M10 21h4" />
+    </Icon>
+  )
+}
