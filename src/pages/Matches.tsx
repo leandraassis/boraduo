@@ -3,17 +3,40 @@ import { Outlet, useMatch } from 'react-router-dom'
 import { ConversationList } from '../components/matches/ConversationList'
 import type { MatchesOutletContext } from '../components/matches/context'
 import { useConversations } from '../hooks/useConversations'
+import { useConversationsRealtime } from '../hooks/useConversationsRealtime'
 import { useSession } from '../hooks/useSession'
 
 const paneClass = 'min-w-0 flex-col lg:overflow-hidden lg:rounded-2xl lg:border lg:border-line lg:bg-surface/40'
 
 export function Matches() {
   const { session } = useSession()
-  const { status, conversations, reload, patchConversation } = useConversations()
+  const { status, conversations, reload, reloadSilently, patchConversation } = useConversations()
   const chatMatch = useMatch('/app/matches/:matchId')
   const selectedMatchId = chatMatch?.params.matchId
   const inChat = selectedMatchId !== undefined
   const currentUserId = session?.user.id
+
+  // Mensagem nova em qualquer conversa: atualiza prévia/ordem e marca "não lida" quando é do outro e a
+  // conversa não está aberta (a aberta já é lida pelo ChatView). Conversa desconhecida -> recarrega.
+  useConversationsRealtime(
+    currentUserId,
+    conversations.map((c) => c.matchId),
+    {
+      onMessage: (message) => {
+        if (!conversations.some((c) => c.matchId === message.matchId)) {
+          reloadSilently(selectedMatchId)
+          return
+        }
+        patchConversation(message.matchId, {
+          lastMessage: { content: message.content, senderId: message.senderId, createdAt: message.createdAt },
+          lastMessageAt: message.createdAt,
+          ...(message.senderId !== currentUserId ? { unread: message.matchId !== selectedMatchId } : {}),
+        })
+      },
+      onNewMatch: () => reloadSilently(selectedMatchId),
+      onSubscribed: () => reloadSilently(selectedMatchId),
+    },
+  )
 
   const outletContext = useMemo<MatchesOutletContext>(
     () => ({ currentUserId, status, conversations, patchConversation, reloadConversations: reload }),

@@ -104,3 +104,19 @@ export async function sendMessage(matchId: string, senderId: string, content: st
   if (error) throw new SendMessageError(error.code === '42501')
   return { id: data.id, senderId: data.sender_id, content: data.content, createdAt: data.created_at }
 }
+
+// Linha crua de `messages` vinda do Realtime (payload.new) -> mensagem tipada, ou null se malformada.
+export function parseMessageRow(row: unknown): (ChatMessage & { matchId: string }) | null {
+  if (typeof row !== 'object' || row === null) return null
+  const r = row as Record<string, unknown>
+  if (
+    typeof r.id !== 'string' ||
+    typeof r.match_id !== 'string' ||
+    typeof r.sender_id !== 'string' ||
+    typeof r.content !== 'string' ||
+    typeof r.created_at !== 'string'
+  ) {
+    return null
+  }
+  return { id: r.id, matchId: r.match_id, senderId: r.sender_id, content: r.content, createdAt: r.created_at }
+}

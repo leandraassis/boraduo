@@ -29,6 +29,19 @@ export function useConversations() {
     setAttempt((n) => n + 1)
   }, [])
 
+  // Reconcilia com o banco sem piscar skeleton (evento de match novo, reconexão do Realtime).
+  // `openMatchId`: conversa aberta agora — já está sendo lida, então nunca volta como "não lida".
+  const reloadSilently = useCallback((openMatchId?: string) => {
+    fetchConversations()
+      .then((conversations) => {
+        setState({
+          status: 'ready',
+          conversations: conversations.map((c) => (c.matchId === openMatchId ? { ...c, unread: false } : c)),
+        })
+      })
+      .catch(() => undefined)
+  }, [])
+
   const patchConversation = useCallback((matchId: string, patch: Partial<Conversation>) => {
     setState((s) => ({
       ...s,
@@ -36,5 +49,5 @@ export function useConversations() {
     }))
   }, [])
 
-  return { status: state.status, conversations: state.conversations, reload, patchConversation }
+  return { status: state.status, conversations: state.conversations, reload, reloadSilently, patchConversation }
 }
