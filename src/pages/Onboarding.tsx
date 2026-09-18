@@ -1,22 +1,26 @@
 import { useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
+import { AuthLayout } from '../components/auth/AuthLayout'
+import { BoltIcon } from '../components/icons'
+import { OnboardingHero } from '../components/onboarding/OnboardingHero'
 import { OnboardingProgress } from '../components/onboarding/OnboardingProgress'
 import { StepAccount } from '../components/onboarding/StepAccount'
 import { StepBio } from '../components/onboarding/StepBio'
 import { StepGameProfile } from '../components/onboarding/StepGameProfile'
 import { StepIdentity } from '../components/onboarding/StepIdentity'
+import { ONBOARDING_STEPS } from '../components/onboarding/steps'
 import { useProfile } from '../hooks/useProfile'
 import { useSession } from '../hooks/useSession'
 import { uploadAvatar, type StagedAvatar } from '../lib/avatar'
+import type { RankType, RoleType } from '../lib/gameData'
 import { supabase } from '../lib/supabase'
-import type { Enums } from '../types/database'
 
 interface OnboardingData {
   username: string
   avatar: StagedAvatar | null
-  role: Enums<'role_type'> | null
+  role: RoleType | null
   mainAgent: string
-  rank: Enums<'rank_type'> | null
+  rank: RankType | null
   bio: string
 }
 
@@ -83,45 +87,61 @@ export function Onboarding() {
     navigate('/app', { replace: true })
   }
 
+  const config = ONBOARDING_STEPS[step - 1]
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-neutral-950 p-4">
-      <div className="w-full max-w-[480px] rounded-2xl border border-neutral-800 bg-neutral-900/50 p-6">
-        <OnboardingProgress step={step} />
+    <AuthLayout>
+      <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_540px] lg:items-start lg:gap-16 lg:pt-2">
+        <OnboardingHero step={step} />
 
-        {step === 1 && <StepAccount />}
+        <div className="mx-auto w-full max-w-[540px] lg:mx-0 lg:rounded-3xl lg:border lg:border-line lg:bg-surface/70 lg:p-8 lg:backdrop-blur">
+          <OnboardingProgress step={step} />
 
-        {step === 2 && (
-          <StepIdentity
-            username={data.username}
-            avatar={data.avatar}
-            onUsernameChange={(username) => setData((d) => ({ ...d, username }))}
-            onAvatarChange={(avatar) => setData((d) => ({ ...d, avatar }))}
-            onNext={() => setStep(3)}
-          />
-        )}
+          <div className="mt-7 mb-6 flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-[28px] leading-9 font-bold tracking-[-0.02em]">{config.title}</h1>
+              <p className="mt-2 text-sm leading-5 text-ink-muted">{config.subtitle}</p>
+            </div>
+            {step === 1 && <BoltIcon className="mt-1 h-6 w-6 shrink-0 text-match" />}
+          </div>
 
-        {step === 3 && (
-          <StepGameProfile
-            role={data.role}
-            mainAgent={data.mainAgent}
-            rank={data.rank}
-            onRoleChange={(role) => setData((d) => ({ ...d, role }))}
-            onMainAgentChange={(mainAgent) => setData((d) => ({ ...d, mainAgent }))}
-            onRankChange={(rank) => setData((d) => ({ ...d, rank }))}
-            onNext={() => setStep(4)}
-          />
-        )}
+          {step === 1 && <StepAccount />}
 
-        {step === 4 && (
-          <StepBio
-            bio={data.bio}
-            onBioChange={(bio) => setData((d) => ({ ...d, bio }))}
-            onFinish={finishOnboarding}
-            submitting={submitting}
-            error={submitError}
-          />
-        )}
+          {step === 2 && (
+            <StepIdentity
+              username={data.username}
+              avatar={data.avatar}
+              onUsernameChange={(username) => setData((d) => ({ ...d, username }))}
+              onAvatarChange={(avatar) => setData((d) => ({ ...d, avatar }))}
+              onNext={() => setStep(3)}
+            />
+          )}
+
+          {step === 3 && (
+            <StepGameProfile
+              role={data.role}
+              mainAgent={data.mainAgent}
+              rank={data.rank}
+              onRoleChange={(role) => setData((d) => ({ ...d, role }))}
+              onMainAgentChange={(mainAgent) => setData((d) => ({ ...d, mainAgent }))}
+              onRankChange={(rank) => setData((d) => ({ ...d, rank }))}
+              onNext={() => setStep(4)}
+              onBack={() => setStep(2)}
+            />
+          )}
+
+          {step === 4 && (
+            <StepBio
+              bio={data.bio}
+              onBioChange={(bio) => setData((d) => ({ ...d, bio }))}
+              onFinish={finishOnboarding}
+              onBack={() => setStep(3)}
+              submitting={submitting}
+              error={submitError}
+            />
+          )}
+        </div>
       </div>
-    </div>
+    </AuthLayout>
   )
 }

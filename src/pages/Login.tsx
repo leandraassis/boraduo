@@ -1,5 +1,10 @@
 import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { AuthLayout } from '../components/auth/AuthLayout'
+import { DuoSampleCard } from '../components/auth/DuoSampleCard'
+import { PasswordField, TextField } from '../components/auth/TextField'
+import { errorBannerClass, gradientTextClass, primaryButtonClass } from '../components/formStyles'
+import { ArrowRightIcon, BoltIcon, LockIcon, MailIcon } from '../components/icons'
 import { useSession } from '../hooks/useSession'
 import { supabase } from '../lib/supabase'
 
@@ -41,61 +46,82 @@ export function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-neutral-950 p-4">
-      <div className="w-full max-w-[480px] rounded-2xl border border-neutral-800 bg-neutral-900/50 p-6">
-        <h1 className="mb-6 text-center text-xl font-semibold text-white">Entrar no BoraDuo</h1>
+    <AuthLayout centered>
+      <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_440px] lg:items-center lg:gap-16">
+        <div className="hidden lg:block">
+          <h2 className="text-5xl leading-[1.08] font-bold tracking-[-0.03em] xl:text-[56px]">
+            Suba de rank com duos que jogam <span className={gradientTextClass}>sério e sem toxicidade.</span>
+          </h2>
+          <p className="mt-6 max-w-[520px] text-lg leading-7 text-ink-muted">
+            Encontre parceiros alinhados com sua função, seu elo e seus horários de treino. Zero roleta-russa
+            de ranqueada.
+          </p>
+          <DuoSampleCard className="mt-10 max-w-[560px]" />
+        </div>
 
-        <form className="space-y-4" onSubmit={handleSubmit} noValidate>
-          <div>
-            <label htmlFor="email" className="mb-1 block text-sm font-medium text-neutral-300">
-              Email
-            </label>
-            <input
+        <div className="mx-auto w-full max-w-[440px] lg:mx-0 lg:rounded-3xl lg:border lg:border-line lg:bg-surface/80 lg:p-8 lg:backdrop-blur">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-[28px] leading-9 font-bold tracking-[-0.02em]">Bem-vindo de volta, agente</h1>
+              <p className="mt-2 text-sm leading-5 text-ink-muted">
+                Entre na sua conta para achar sua duo perfeita sem toxicidade.
+              </p>
+            </div>
+            <BoltIcon className="mt-1 h-6 w-6 shrink-0 text-match" />
+          </div>
+
+          <form className="mt-7 space-y-5" onSubmit={handleSubmit} noValidate>
+            <TextField
               id="email"
+              label="E-mail"
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={setEmail}
               onBlur={() => setTouched((t) => ({ ...t, email: true }))}
-              className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-white outline-none focus:border-purple-500"
               placeholder="voce@email.com"
+              autoComplete="email"
+              icon={<MailIcon className="h-5 w-5" />}
+              error={touched.email ? emailError : null}
             />
-            {touched.email && emailError && <p className="mt-1 text-xs text-red-400">{emailError}</p>}
-          </div>
 
-          <div>
-            <label htmlFor="password" className="mb-1 block text-sm font-medium text-neutral-300">
-              Senha
-            </label>
-            <input
+            <PasswordField
               id="password"
-              type="password"
+              label="Senha"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={setPassword}
               onBlur={() => setTouched((t) => ({ ...t, password: true }))}
-              className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-white outline-none focus:border-purple-500"
               placeholder="Sua senha"
+              autoComplete="current-password"
+              icon={<LockIcon className="h-5 w-5" />}
+              error={touched.password ? passwordError : null}
             />
-            {touched.password && passwordError && <p className="mt-1 text-xs text-red-400">{passwordError}</p>}
-          </div>
 
-          {submitError && <p className="text-sm text-red-400">{submitError}</p>}
+            {submitError && (
+              <p role="alert" className={errorBannerClass}>
+                {submitError}
+              </p>
+            )}
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full rounded-lg bg-purple-600 py-2 font-medium text-white transition hover:bg-purple-500 disabled:opacity-50"
-          >
-            {submitting ? 'Entrando...' : 'Entrar'}
-          </button>
+            <button type="submit" disabled={submitting} className={primaryButtonClass}>
+              {submitting ? (
+                'Entrando...'
+              ) : (
+                <>
+                  Entrar no BoraDuo
+                  <ArrowRightIcon className="h-4 w-4" />
+                </>
+              )}
+            </button>
+          </form>
 
-          <p className="text-center text-sm text-neutral-400">
-            Não tem conta?{' '}
-            <Link to="/onboarding" className="text-purple-400 hover:underline">
+          <p className="mt-6 border-t border-line pt-5 text-center text-sm text-ink-muted">
+            Ainda não tem uma conta?{' '}
+            <Link to="/onboarding" className="font-semibold text-match hover:underline">
               Criar conta
             </Link>
           </p>
-        </form>
+        </div>
       </div>
-    </div>
+    </AuthLayout>
   )
 }

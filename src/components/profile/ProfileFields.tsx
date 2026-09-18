@@ -1,20 +1,11 @@
-import { useRef, type ChangeEvent, type ReactNode } from 'react'
+import { useRef, type ChangeEvent } from 'react'
 import { AVATAR_ACCEPT } from '../../lib/avatar'
-import {
-  RANK_INFO,
-  RANK_VALUES,
-  ROLE_INFO,
-  ROLE_VALUES,
-  SCHEDULE_WINDOWS,
-  type RankType,
-  type RoleType,
-  type ScheduleWindow,
-} from '../../lib/gameData'
-import { RoleIcon } from '../RoleIcon'
-
-export const USERNAME_MAX_LENGTH = 30
-export const MAIN_AGENT_MAX_LENGTH = 30
-export const BIO_MAX_LENGTH = 50
+import { SCHEDULE_WINDOWS, type RankType, type RoleType, type ScheduleWindow } from '../../lib/gameData'
+import { BIO_MAX_LENGTH, MAIN_AGENT_MAX_LENGTH, USERNAME_MAX_LENGTH } from '../../lib/profileLimits'
+import { FormSection as Section } from '../FormSection'
+import { focusRing, inputClass, optionClass, smallLabelClass } from '../formStyles'
+import { RankSelector } from '../RankSelector'
+import { RoleSelector } from '../RoleSelector'
 
 export interface ProfileDraft {
   username: string
@@ -39,31 +30,6 @@ interface ProfileFieldsProps {
   avatarError: string | null
   onPickAvatar: (file: File) => void
   onRemoveAvatar: () => void
-}
-
-const focusRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-match'
-
-const inputClass =
-  'w-full rounded-xl border border-line bg-field px-3.5 py-3 text-sm text-ink placeholder:text-ink-muted transition focus:border-brand focus:shadow-[inset_0_0_8px_rgba(124,58,237,0.1)] focus:outline-none'
-
-const smallLabelClass = 'text-[11px] leading-4 font-semibold tracking-[0.04em] uppercase text-ink-muted'
-
-function optionClass(selected: boolean) {
-  return `cursor-pointer rounded-xl border text-left transition ${focusRing} ${
-    selected ? 'border-brand bg-brand/15 text-ink' : 'border-line bg-field text-ink-muted hover:border-line-strong'
-  }`
-}
-
-function Section({ title, aside, children }: { title: string; aside?: string; children: ReactNode }) {
-  return (
-    <section className="rounded-2xl border border-line bg-surface p-4 sm:p-5">
-      <div className="mb-4 flex items-baseline justify-between gap-3">
-        <h2 className="text-base leading-[22px] font-semibold tracking-[-0.01em] text-ink">{title}</h2>
-        {aside && <span className={smallLabelClass}>{aside}</span>}
-      </div>
-      {children}
-    </section>
-  )
 }
 
 export function ProfileFields({
@@ -164,29 +130,7 @@ export function ProfileFields({
         </Section>
 
         <Section title="Função principal" aside="Selecione 1">
-          <div className="grid grid-cols-2 gap-3" role="radiogroup" aria-label="Função no jogo">
-            {ROLE_VALUES.map((value) => {
-              const selected = draft.role === value
-              return (
-                <button
-                  key={value}
-                  type="button"
-                  role="radio"
-                  aria-checked={selected}
-                  onClick={() => onChange({ role: value })}
-                  className={`p-3.5 ${optionClass(selected)}`}
-                >
-                  <span className={selected ? 'text-match' : 'text-ink-muted'}>
-                    <RoleIcon role={value} className="h-5 w-5" />
-                  </span>
-                  <span className="mt-2.5 block text-sm font-semibold text-ink">{ROLE_INFO[value].label}</span>
-                  <span className="mt-0.5 block text-xs leading-4 text-ink-muted">
-                    {ROLE_INFO[value].description}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
+          <RoleSelector value={draft.role} onChange={(role) => onChange({ role })} />
         </Section>
 
         <Section title="Agente principal">
@@ -215,30 +159,7 @@ export function ProfileFields({
 
       <div className="space-y-4">
         <Section title="Rank" aside="Autodeclarado">
-          <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Rank">
-            {RANK_VALUES.map((value) => {
-              const selected = draft.rank === value
-              return (
-                <button
-                  key={value}
-                  type="button"
-                  role="radio"
-                  aria-checked={selected}
-                  onClick={() => onChange({ rank: value })}
-                  className={`flex flex-col items-center gap-1.5 px-2 py-3 ${optionClass(selected)}`}
-                >
-                  <span
-                    className="h-3.5 w-3.5 rounded-full ring-1 ring-black/30"
-                    style={{ backgroundColor: RANK_INFO[value].color }}
-                    aria-hidden="true"
-                  />
-                  <span className={`text-xs font-medium ${selected ? 'text-ink' : 'text-ink-muted'}`}>
-                    {RANK_INFO[value].label}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
+          <RankSelector value={draft.rank} onChange={(rank) => onChange({ rank })} />
         </Section>
 
         <Section title="Bio">

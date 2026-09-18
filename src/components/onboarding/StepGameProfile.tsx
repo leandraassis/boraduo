@@ -1,16 +1,22 @@
 import { useState, type FormEvent } from 'react'
-import type { Enums } from '../../types/database'
-import { RankSelector } from './RankSelector'
-import { RoleSelector } from './RoleSelector'
+import type { RankType, RoleType } from '../../lib/gameData'
+import { MAIN_AGENT_MAX_LENGTH } from '../../lib/profileLimits'
+import { TextField } from '../auth/TextField'
+import { FormSection } from '../FormSection'
+import { primaryButtonClass, textButtonClass } from '../formStyles'
+import { ArrowLeftIcon, ArrowRightIcon } from '../icons'
+import { RankSelector } from '../RankSelector'
+import { RoleSelector } from '../RoleSelector'
 
 interface StepGameProfileProps {
-  role: Enums<'role_type'> | null
+  role: RoleType | null
   mainAgent: string
-  rank: Enums<'rank_type'> | null
-  onRoleChange: (value: Enums<'role_type'>) => void
+  rank: RankType | null
+  onRoleChange: (value: RoleType) => void
   onMainAgentChange: (value: string) => void
-  onRankChange: (value: Enums<'rank_type'>) => void
+  onRankChange: (value: RankType) => void
   onNext: () => void
+  onBack: () => void
 }
 
 export function StepGameProfile({
@@ -21,6 +27,7 @@ export function StepGameProfile({
   onMainAgentChange,
   onRankChange,
   onNext,
+  onBack,
 }: StepGameProfileProps) {
   const [touched, setTouched] = useState(false)
   const mainAgentError = mainAgent.trim().length === 0 ? 'Agente principal obrigatório' : null
@@ -34,41 +41,50 @@ export function StepGameProfile({
   }
 
   return (
-    <form className="space-y-6" onSubmit={handleSubmit} noValidate>
-      <div>
-        <p className="mb-2 text-sm font-medium text-neutral-300">Função</p>
+    <form className="space-y-4" onSubmit={handleSubmit} noValidate>
+      <FormSection title="Função principal" aside="Selecione 1">
         <RoleSelector value={role} onChange={onRoleChange} />
-        {touched && role === null && <p className="mt-1 text-xs text-red-400">Escolha uma função</p>}
-      </div>
+        {touched && role === null && (
+          <p role="alert" className="mt-2 text-xs text-danger">
+            Escolha uma função
+          </p>
+        )}
+      </FormSection>
 
-      <div>
-        <label htmlFor="mainAgent" className="mb-1 block text-sm font-medium text-neutral-300">
-          Agente principal
-        </label>
-        <input
+      <FormSection title="Agente principal">
+        <TextField
           id="mainAgent"
-          type="text"
+          label="Agente principal"
+          hideLabel
           value={mainAgent}
-          onChange={(e) => onMainAgentChange(e.target.value)}
+          onChange={onMainAgentChange}
           onBlur={() => setTouched(true)}
-          className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-white outline-none focus:border-purple-500"
+          maxLength={MAIN_AGENT_MAX_LENGTH}
           placeholder="Ex: Jett, Sova, Omen..."
+          error={touched ? mainAgentError : null}
         />
-        {touched && mainAgentError && <p className="mt-1 text-xs text-red-400">{mainAgentError}</p>}
-      </div>
+      </FormSection>
+
+      <FormSection title="Rank" aside="Autodeclarado">
+        <RankSelector value={rank} onChange={onRankChange} />
+        {touched && rank === null && (
+          <p role="alert" className="mt-2 text-xs text-danger">
+            Escolha um rank
+          </p>
+        )}
+      </FormSection>
+
+      <button type="submit" className={primaryButtonClass}>
+        Continuar para bio
+        <ArrowRightIcon className="h-4 w-4" />
+      </button>
 
       <div>
-        <p className="mb-2 text-sm font-medium text-neutral-300">Rank</p>
-        <RankSelector value={rank} onChange={onRankChange} />
-        {touched && rank === null && <p className="mt-1 text-xs text-red-400">Escolha um rank</p>}
+        <button type="button" onClick={onBack} className={textButtonClass}>
+          <ArrowLeftIcon className="h-4 w-4" />
+          Voltar ao passo anterior
+        </button>
       </div>
-
-      <button
-        type="submit"
-        className="w-full rounded-lg bg-purple-600 py-2 font-medium text-white transition hover:bg-purple-500"
-      >
-        Continuar
-      </button>
     </form>
   )
 }
