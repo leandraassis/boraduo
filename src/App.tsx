@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppGuard } from './components/AppGuard'
 import { AuthGuard } from './components/AuthGuard'
+import { ChatPlaceholder } from './components/chat/ChatStates'
 import { Banned } from './pages/Banned'
 import { Chat } from './pages/Chat'
 import { Discover } from './pages/Discover'
@@ -49,15 +50,10 @@ function App() {
             <Matches />
           </AppGuard>
         }
-      />
-      <Route
-        path="/app/matches/:matchId"
-        element={
-          <AppGuard>
-            <Chat />
-          </AppGuard>
-        }
-      />
+      >
+        <Route index element={<ChatPlaceholder />} />
+        <Route path=":matchId" element={<Chat />} />
+      </Route>
       <Route
         path="/app/notifications"
         element={

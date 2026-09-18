@@ -1,3 +1,47 @@
+import { useMemo } from 'react'
+import { Outlet, useMatch } from 'react-router-dom'
+import { ConversationList } from '../components/matches/ConversationList'
+import type { MatchesOutletContext } from '../components/matches/context'
+import { useConversations } from '../hooks/useConversations'
+import { useSession } from '../hooks/useSession'
+
+const paneClass = 'min-w-0 flex-col lg:overflow-hidden lg:rounded-2xl lg:border lg:border-line lg:bg-surface/40'
+
 export function Matches() {
-  return <div>Matches — em construção</div>
+  const { session } = useSession()
+  const { status, conversations, reload, patchConversation } = useConversations()
+  const chatMatch = useMatch('/app/matches/:matchId')
+  const selectedMatchId = chatMatch?.params.matchId
+  const inChat = selectedMatchId !== undefined
+  const currentUserId = session?.user.id
+
+  const outletContext = useMemo<MatchesOutletContext>(
+    () => ({ currentUserId, status, conversations, patchConversation, reloadConversations: reload }),
+    [currentUserId, status, conversations, patchConversation, reload],
+  )
+
+  return (
+    <div className="bg-canvas font-inter text-ink">
+      <div className="mx-auto flex h-dvh w-full max-w-[1180px] lg:gap-6 lg:p-6">
+        <aside className={`${inChat ? 'hidden lg:flex' : 'flex'} ${paneClass} w-full lg:w-[380px] lg:shrink-0`}>
+          <header className="px-4 pt-6 pb-4 lg:px-5">
+            <h1 className="text-2xl leading-8 font-bold tracking-[-0.02em]">Matches</h1>
+          </header>
+          <div className="flex-1 overflow-y-auto pb-2">
+            <ConversationList
+              status={status}
+              conversations={conversations}
+              selectedMatchId={selectedMatchId}
+              currentUserId={currentUserId}
+              onRetry={reload}
+            />
+          </div>
+        </aside>
+
+        <section className={`${inChat ? 'flex' : 'hidden lg:flex'} ${paneClass} flex-1`}>
+          <Outlet context={outletContext} />
+        </section>
+      </div>
+    </div>
+  )
 }

@@ -1,3 +1,106 @@
+import { useCallback, useEffect } from 'react'
+import { useOutletContext, useParams } from 'react-router-dom'
+import { ChatHeader } from '../components/chat/ChatHeader'
+import { MessageComposer } from '../components/chat/MessageComposer'
+import { MessageList } from '../components/chat/MessageList'
+import { ChatError, ChatNotFound, ChatSkeleton, ReadOnlyNotice } from '../components/chat/ChatStates'
+import type { MatchesOutletContext } from '../components/matches/context'
+import { useChatMessages } from '../hooks/useChatMessages'
+import { markMatchRead, sendMessage, SendMessageError, type Conversation } from '../lib/chat'
+
+interface ChatViewProps {
+  conversation: Conversation
+  currentUserId: string
+  patchConversation: MatchesOutletContext['patchConversation']
+}
+
+function ChatView({ conversation, currentUserId, patchConversation }: ChatViewProps) {
+  const { matchId } = conversation
+  const chat = useChatMessages(matchId)
+  const { messages, addMessage, replaceMessage, patchMessage } = chat
+
+  useEffect(() => {
+    let cancelled = false
+    markMatchRead(matchId)
+      .then(() => {
+        if (!cancelled) patchConversation(matchId, { unread: false })
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [matchId, patchConversation])
+
+  const deliver = useCallback(
+    async (pendingId: string, content: string) => {
+      try {
+        const saved = await sendMessage(matchId, currentUserId, content)
+        replaceMessage(pendingId, saved)
+        patchConversation(matchId, {
+          lastMessage: { content: saved.content, senderId: saved.senderId, createdAt: saved.createdAt },
+          lastMessageAt: saved.createdAt,
+        })
+      } catch (error) {
+        patchMessage(pendingId, { status: 'failed' })
+        if (error instanceof SendMessageError && error.forbidden) {
+          patchConversation(matchId, { readOnly: true })
+        }
+      }
+    },
+    [matchId, currentUserId, replaceMessage, patchMessage, patchConversation],
+  )
+
+  function handleSend(content: string) {
+    const pendingId = `pending-${crypto.randomUUID()}`
+    addMessage({ id: pendingId, senderId: currentUserId, content, createdAt: new Date().toISOString(), status: 'sending' })
+    void deliver(pendingId, content)
+  }
+
+  function handleRetry(messageId: string) {
+    const message = messages.find((m) => m.id === messageId)
+    if (!message) return
+    patchMessage(messageId, { status: 'sending' })
+    void deliver(messageId, message.content)
+  }
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <ChatHeader conversation={conversation} />
+
+      {chat.status === 'loading' && <ChatSkeleton />}
+      {chat.status === 'error' && <ChatError onRetry={chat.retry} />}
+      {chat.status === 'ready' && (
+        <MessageList
+          messages={messages}
+          currentUserId={currentUserId}
+          truncated={chat.truncated}
+          canRetry={!conversation.readOnly}
+          onRetry={handleRetry}
+        />
+      )}
+
+      {conversation.readOnly ? <ReadOnlyNotice /> : chat.status === 'ready' && <MessageComposer onSend={handleSend} />}
+    </div>
+  )
+}
+
 export function Chat() {
-  return <div>Chat — em construção</div>
+  const { matchId } = useParams()
+  const { currentUserId, status, conversations, patchConversation, reloadConversations } =
+    useOutletContext<MatchesOutletContext>()
+
+  if (status === 'loading' || !currentUserId) return <ChatSkeleton />
+  if (status === 'error') return <ChatError onRetry={reloadConversations} />
+
+  const conversation = conversations.find((c) => c.matchId === matchId)
+  if (!conversation) return <ChatNotFound />
+
+  return (
+    <ChatView
+      key={conversation.matchId}
+      conversation={conversation}
+      currentUserId={currentUserId}
+      patchConversation={patchConversation}
+    />
+  )
 }

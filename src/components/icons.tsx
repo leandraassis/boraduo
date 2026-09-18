@@ -124,6 +124,33 @@ export function HeartIcon(props: IconProps) {
   )
 }
 
+export function MoreVerticalIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="5" r="1.2" />
+      <circle cx="12" cy="12" r="1.2" />
+      <circle cx="12" cy="19" r="1.2" />
+    </Icon>
+  )
+}
+
+export function SendIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M21 3 10 14M21 3l-7 18-4-7-7-4z" />
+    </Icon>
+  )
+}
+
+export function ChatIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 5h16v11H9l-5 4z" />
+      <path d="M8 9.5h8M8 12.5h5" />
+    </Icon>
+  )
+}
+
 export function BoltIcon(props: IconProps) {
   return (
     <Icon {...props}>

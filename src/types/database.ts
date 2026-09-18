@@ -368,6 +368,26 @@ export type Database = {
       }
       fn_current_user_is_active: { Args: never; Returns: boolean }
       fn_current_user_is_admin: { Args: never; Returns: boolean }
+      fn_get_conversations: {
+        Args: never
+        Returns: {
+          last_message_at: string
+          last_message_content: string | null
+          last_message_created_at: string | null
+          last_message_sender_id: string | null
+          match_created_at: string
+          match_id: string
+          origin: Database["public"]["Enums"]["match_origin"]
+          other_avatar_url: string | null
+          other_id: string
+          other_rank: Database["public"]["Enums"]["rank_type"]
+          other_role: Database["public"]["Enums"]["role_type"]
+          other_username: string
+          read_only: boolean
+          unread: boolean
+        }[]
+      }
+      fn_mark_match_read: { Args: { p_match_id: string }; Returns: undefined }
       fn_get_swipe_deck: {
         Args: {
           p_exclude_ids?: string[]
