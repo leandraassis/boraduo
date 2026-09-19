@@ -14,6 +14,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      agents: {
+        Row: {
+          id: string
+          name: string
+          role: Database["public"]["Enums"]["role_type"]
+        }
+        Insert: {
+          id: string
+          name: string
+          role: Database["public"]["Enums"]["role_type"]
+        }
+        Update: {
+          id?: string
+          name?: string
+          role?: Database["public"]["Enums"]["role_type"]
+        }
+        Relationships: []
+      }
       blocks: {
         Row: {
           blocker_id: string
@@ -229,7 +247,7 @@ export type Database = {
           created_at: string
           id: string
           is_available: boolean
-          main_agent: string
+          main_agent_id: string
           permission_level: Database["public"]["Enums"]["permission_level_type"]
           rank: Database["public"]["Enums"]["rank_type"]
           role: Database["public"]["Enums"]["role_type"]
@@ -245,7 +263,7 @@ export type Database = {
           created_at?: string
           id: string
           is_available?: boolean
-          main_agent: string
+          main_agent_id: string
           permission_level?: Database["public"]["Enums"]["permission_level_type"]
           rank: Database["public"]["Enums"]["rank_type"]
           role: Database["public"]["Enums"]["role_type"]
@@ -261,7 +279,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_available?: boolean
-          main_agent?: string
+          main_agent_id?: string
           permission_level?: Database["public"]["Enums"]["permission_level_type"]
           rank?: Database["public"]["Enums"]["rank_type"]
           role?: Database["public"]["Enums"]["role_type"]
@@ -274,6 +292,13 @@ export type Database = {
             columns: ["banned_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_main_agent_id_fkey"
+            columns: ["main_agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
             referencedColumns: ["id"]
           },
         ]
@@ -404,7 +429,7 @@ export type Database = {
           avatar_url: string | null
           created_at: string
           id: string
-          main_agent: string
+          main_agent_id: string
           rank: Database["public"]["Enums"]["rank_type"]
           role: Database["public"]["Enums"]["role_type"]
           username: string
@@ -457,7 +482,7 @@ export type Database = {
           avatar_url: string | null
           bio: string | null
           id: string
-          main_agent: string
+          main_agent_id: string
           rank: Database["public"]["Enums"]["rank_type"]
           role: Database["public"]["Enums"]["role_type"]
           username: string

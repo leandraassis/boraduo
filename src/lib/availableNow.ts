@@ -11,7 +11,7 @@ export interface AvailableProfile {
   username: string
   avatarUrl: string | null
   role: RoleType
-  mainAgent: string
+  mainAgentId: string
   rank: RankType
   createdAt: string
 }
@@ -57,7 +57,7 @@ export async function fetchAvailablePage(
     username: row.username,
     avatarUrl: row.avatar_url,
     role: row.role,
-    mainAgent: row.main_agent,
+    mainAgentId: row.main_agent_id,
     rank: row.rank,
     createdAt: row.created_at,
   }))

@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
+import type { Agent } from '../../lib/agents'
 import type { RankType, RoleType } from '../../lib/gameData'
-import { MAIN_AGENT_MAX_LENGTH } from '../../lib/profileLimits'
-import { TextField } from '../auth/TextField'
+import { AgentSelect } from '../AgentSelect'
 import { FormSection } from '../FormSection'
 import { primaryButtonClass, textButtonClass } from '../formStyles'
 import { ArrowLeftIcon, ArrowRightIcon } from '../icons'
@@ -10,10 +10,10 @@ import { RoleSelector } from '../RoleSelector'
 
 interface StepGameProfileProps {
   role: RoleType | null
-  mainAgent: string
+  mainAgentId: string | null
   rank: RankType | null
   onRoleChange: (value: RoleType) => void
-  onMainAgentChange: (value: string) => void
+  onAgentChange: (agent: Agent) => void
   onRankChange: (value: RankType) => void
   onNext: () => void
   onBack: () => void
@@ -21,16 +21,16 @@ interface StepGameProfileProps {
 
 export function StepGameProfile({
   role,
-  mainAgent,
+  mainAgentId,
   rank,
   onRoleChange,
-  onMainAgentChange,
+  onAgentChange,
   onRankChange,
   onNext,
   onBack,
 }: StepGameProfileProps) {
   const [touched, setTouched] = useState(false)
-  const mainAgentError = mainAgent.trim().length === 0 ? 'Agente principal obrigatório' : null
+  const mainAgentError = mainAgentId === null ? 'Agente principal obrigatório' : null
   const isValid = role !== null && rank !== null && !mainAgentError
 
   function handleSubmit(e: FormEvent) {
@@ -52,17 +52,20 @@ export function StepGameProfile({
       </FormSection>
 
       <FormSection title="Agente principal">
-        <TextField
+        <AgentSelect
           id="mainAgent"
           label="Agente principal"
-          hideLabel
-          value={mainAgent}
-          onChange={onMainAgentChange}
+          value={mainAgentId}
+          onChange={onAgentChange}
           onBlur={() => setTouched(true)}
-          maxLength={MAIN_AGENT_MAX_LENGTH}
-          placeholder="Ex: Jett, Sova, Omen..."
-          error={touched ? mainAgentError : null}
+          invalid={touched && mainAgentError !== null}
+          describedBy={touched && mainAgentError ? 'mainAgent-error' : undefined}
         />
+        {touched && mainAgentError && (
+          <p id="mainAgent-error" role="alert" className="mt-1.5 text-xs text-danger">
+            {mainAgentError}
+          </p>
+        )}
       </FormSection>
 
       <FormSection title="Rank" aside="Autodeclarado">

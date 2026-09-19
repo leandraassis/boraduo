@@ -45,7 +45,7 @@ Estende `auth.users` (relação 1:1 por `id`).
 | `avatar_url` | text, nullable | Avatar opcional, não obrigatório |
 | `bio` | varchar(50), nullable | Limite de ~50 caracteres |
 | `role` | enum | Função no jogo: `duelist \| sentinel \| controller \| initiator`. Não confundir com `permission_level` |
-| `main_agent` | text | Personagem mais jogado |
+| `main_agent_id` | text, NOT NULL, FK → agents(id) `ON DELETE RESTRICT` | Personagem mais jogado (um só por perfil). Ver 3.10. Substituiu o texto livre `main_agent`, removido |
 | `rank` | enum | Tier único, sem subdivisão: `iron \| bronze \| silver \| gold \| platinum \| diamond \| ascendant \| immortal \| radiant`. Autodeclarado |
 | `availability_schedule` | text, nullable | Informativo. Não filtra "Disponíveis agora". Pode opcionalmente ser usado como filtro no swipe |
 | `is_available` | boolean, default false | Flag de intenção "agora", independente da conexão real |
@@ -180,6 +180,25 @@ no momento do evento. Único canal de notificação do MVP (sem push/e-mail).
 | `read` | boolean, default false | |
 | `created_at` | timestamptz | |
 
+### 3.10 `agents`
+Tabela de referência dos agentes de Valorant, usada na seleção do main
+(`profiles.main_agent_id`). Somente leitura para o app.
+
+| Campo | Tipo | Notas |
+|---|---|---|
+| `id` | text (PK) | Slug estável, `^[a-z0-9]+$`: `jett`, `kayo`... |
+| `name` | text, unique | Nome de exibição (`KAY/O`) |
+| `role` | enum `role_type` | Função do agente (mesmo enum de `profiles.role`) |
+
+- **`agents.role` só pré-preenche `profiles.role` no formulário.** Não existe regra no
+  banco ligando os dois: função e main são salvos de forma independente, e o jogador
+  pode ter um main de outra função. O filtro do swipe continua usando `profiles.role`.
+- **Escrita só por migration.** RLS ativa sem policy de escrita; `REVOKE ALL` de
+  `anon`/`authenticated` (o Supabase concede ALL a tabela nova por padrão) e `GRANT
+  SELECT` só para `authenticated`. Agentes novos entram por seed idempotente numa
+  migration, sem deploy do front (o app lê a tabela).
+- Fora do MVP: imagens de agentes, filtro por agente no swipe e mais de um main.
+
 ### 3.9 Estado local (fora do banco)
 `seen_availability_warning`: flag do modal de aviso "Estou disponível" — persistida
 em **localStorage**, não no banco. Decisão explícita: é cosmética, não precisa
@@ -248,9 +267,11 @@ sobreviver a troca de dispositivo nem ser auditável.
   `status = active` de ambos os lados (usuário logado e candidato); exclusões de
   swipes/matches/blocks e filtros aplicados na query da aplicação.
 - **`profiles` (update da própria linha)**: usuário pode atualizar username, avatar_url,
-  bio, role, main_agent, rank, availability_schedule, is_available — **mas não**
+  bio, role, main_agent_id, rank, availability_schedule, is_available — **mas não**
   permission_level, status, banned_by, banned_at. Ver seção 8.1 sobre por que isso
   precisa de um trigger, não só da policy.
+- **`agents` (select)**: qualquer usuário `authenticated`; `anon` não lê. Nenhuma escrita
+  pelo app (sem policy de insert/update/delete e sem privilégio de escrita).
 - **`swipes` (insert)**: só o próprio usuário como `swiper_id`; ambos `status = active`.
 - **`swipes` (select)**: usuário só vê as próprias linhas como `swiper_id`.
 - **`matches` (select)**: usuário só vê matches onde é `user_a_id` ou `user_b_id`.
@@ -297,7 +318,7 @@ Sequência curta, uma decisão por tela, com indicador de progresso:
 |---|---|---|---|
 | 1 | Cadastro | Email, senha | Validação inline |
 | 2 | Identidade | Username, avatar (opcional) | Avatar pulável |
-| 3 | Perfil de jogo | Role, main agent, rank | Rank como seletor visual de ícones, não dropdown |
+| 3 | Perfil de jogo | Role, agente principal (obrigatório), rank | Rank como seletor visual de ícones, não dropdown. Agente: combobox só de texto, agrupado por função, com busca. Escolher o agente pré-preenche a role até o jogador escolhê-la à mão |
 | 4 | Bio (opcional) | Bio (até 50 char) | Contador de caracteres; pulável |
 
 Responsivo: em telas largas, card centralizado com largura máxima (~480px).
@@ -307,7 +328,7 @@ Segmented control no topo: **Swipe ⇄ Disponíveis agora**.
 
 **Modo Swipe:**
 - Card único visível por vez (próximo levemente visível atrás)
-- Avatar, username, role, rank, main agent, bio
+- Avatar, username, role, rank, agente principal (nome + função do agente), bio
 - Gesto de swipe **e** botões explícitos de like/pass (obrigatórios — desktop sem
   touch e acessibilidade)
 - Ícone de filtro (funil) no header, ao lado do segmented control, com badge/dot
@@ -356,7 +377,8 @@ em telas largas.
 
 ### 6.5 Perfil / Configurações
 - Visualização do próprio perfil (mesmo formato do card de swipe)
-- Edição: username, avatar, bio, role, main_agent, rank, availability_schedule
+- Edição: username, avatar, bio, role, main_agent_id (seleção de agente), rank, availability_schedule.
+  Perfil já criado começa com a role como escolhida: trocar o agente nunca a sobrescreve
 - Toggle "Estou disponível" também disponível aqui (redundância intencional)
 - Logout
 
@@ -571,19 +593,19 @@ aqui como risco aceito conscientemente, não como omissão.
 ```
 Módulo: Autenticação e Onboarding
 1. O sistema deve permitir cadastro com email e senha (Supabase Auth)
-2. O sistema deve coletar username, avatar (opcional), role, main agent, rank e bio (opcional, até 50 caracteres) em sequência, com etapas puláveis onde indicado
+2. O sistema deve coletar username, avatar (opcional), role, main agent (escolhido numa lista de agentes, obrigatório), rank e bio (opcional, até 50 caracteres) em sequência, com etapas puláveis onde indicado
 3. O sistema deve validar campos inline durante o onboarding, não só no submit
 4. O sistema deve exibir indicador de progresso durante o onboarding
 
 Módulo: Perfil
 5. O sistema deve permitir visualizar o próprio perfil no mesmo formato exibido a outros usuários
-6. O sistema deve permitir editar username, avatar, bio, role, main_agent, rank e availability_schedule
+6. O sistema deve permitir editar username, avatar, bio, role, main_agent_id, rank e availability_schedule
 7. O sistema deve permitir ativar/desativar o toggle "Estou disponível" (is_available) a partir do perfil e da tela Discover
 8. O sistema deve exibir um modal de aviso na primeira ativação do toggle "Estou disponível", persistindo a flag de visualização em localStorage
 9. O sistema deve permitir logout
 
 Módulo: Descoberta — Swipe
-10. O sistema deve exibir um card por vez com avatar, username, role, rank, main_agent e bio
+10. O sistema deve exibir um card por vez com avatar, username, role, rank, agente principal (main_agent_id) e bio
 11. O sistema deve permitir dar like/pass via gesto de arraste e via botões explícitos
 12. O sistema deve excluir do deck: o próprio usuário, perfis já swipados, perfis com match existente (qualquer origem), perfis bloqueados e perfis com status != active
 13. O sistema deve permitir filtrar o deck por role, rank (faixa) e, opcionalmente, horário de disponibilidade, via bottom sheet/popover acessado por ícone de filtro no header

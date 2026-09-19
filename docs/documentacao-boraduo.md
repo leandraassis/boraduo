@@ -203,6 +203,6 @@ Para evitar ambiguidade entre termos de produto e nomes de campos técnicos:
 | "Disponíveis agora" | `is_available` (profiles) + Presence (Realtime) | Nome exibido ao usuário mudou de "Pronta entrega" para "Disponíveis agora" — atualizado em todo este documento e no spec técnico |
 | Função no jogo (duelista, sentinela...) | `role` (profiles) | Não confundir com nível de permissão |
 | Nível de permissão (usuário/admin) | `permission_level` (profiles) | Campo separado de `role` |
-| Personagem mais jogado | `main_agent` (profiles) | |
+| Personagem mais jogado | `main_agent_id` (profiles) → `agents` | Antes era texto livre (`main_agent`). A função do agente só pré-preenche `role` no formulário; os dois campos são independentes |
 | Match via swipe | `matches.origin = 'swipe'` | |
 | Match via Disponíveis agora | `matches.origin = 'quick_start'` | |

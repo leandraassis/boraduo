@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { RANK_INFO, ROLE_INFO } from '../lib/gameData'
 import type { Tables } from '../types/database'
+import { AgentBadge } from './AgentBadge'
 import { RoleIcon } from './RoleIcon'
 
 export type ProfileCardData = Pick<
   Tables<'profiles'>,
-  'username' | 'avatar_url' | 'role' | 'rank' | 'main_agent' | 'bio'
+  'username' | 'avatar_url' | 'role' | 'rank' | 'main_agent_id' | 'bio'
 >
 
 const chipClass =
@@ -24,7 +25,6 @@ export function ProfileCard({ profile, className = '', fill = false }: ProfileCa
   const role = ROLE_INFO[profile.role]
   const showImage = profile.avatar_url !== null && profile.avatar_url !== failedUrl
   const initial = Array.from(profile.username.trim())[0]?.toUpperCase() ?? '?'
-  const mainAgent = profile.main_agent.trim()
 
   return (
     <article
@@ -71,11 +71,7 @@ export function ProfileCard({ profile, className = '', fill = false }: ProfileCa
               <RoleIcon role={profile.role} className="h-3.5 w-3.5" />
               {role.label}
             </span>
-            {mainAgent && (
-              <span className={`${chipClass} max-w-full text-ink-muted`}>
-                <span className="truncate">{mainAgent}</span>
-              </span>
-            )}
+            <AgentBadge agentId={profile.main_agent_id} />
           </div>
 
           {profile.bio && <p className="text-sm leading-5 wrap-break-word text-ink-muted">{profile.bio}</p>}

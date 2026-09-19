@@ -12,6 +12,13 @@
   --color-ready: #10b981;
   --color-danger: #ef4444;
   --color-ink: #f4f4f5;
+
+  /* Cor por função (texto e ícone do AgentBadge). Contraste >= 4,5:1 sobre canvas, field, surface, line e o
+     chip bg-canvas/70 sobre foto clara; o nome da função aparece sempre em texto, a cor nunca é a única pista. */
+  --color-role-duelist: #fb923c;
+  --color-role-initiator: #a3e635;
+  --color-role-controller: #60a5fa;
+  --color-role-sentinel: #f472b6;
   --color-ink-muted: #94a3b8;
 
   --font-inter: 'Inter Variable', 'Inter', system-ui, sans-serif;

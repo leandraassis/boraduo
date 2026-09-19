@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import type { Agent } from '../../lib/agents'
 import { deleteAvatar, uploadAvatar, validateAvatarFile, type StagedAvatar } from '../../lib/avatar'
-import { parseSchedule, serializeSchedule } from '../../lib/gameData'
+import { parseSchedule, serializeSchedule, type RoleType } from '../../lib/gameData'
 import { supabase } from '../../lib/supabase'
 import type { Tables } from '../../types/database'
 import { ProfileCard } from '../ProfileCard'
@@ -15,7 +16,7 @@ function toDraft(profile: Tables<'profiles'>): ProfileDraft {
   return {
     username: profile.username,
     role: profile.role,
-    mainAgent: profile.main_agent,
+    mainAgentId: profile.main_agent_id,
     rank: profile.rank,
     bio: profile.bio ?? '',
     schedule: parseSchedule(profile.availability_schedule),
@@ -27,7 +28,7 @@ function validate(draft: ProfileDraft): ProfileFieldErrors {
   const username = draft.username.trim()
   if (!username) errors.username = 'Username obrigatório'
   else if (username.length < 3) errors.username = 'Mínimo de 3 caracteres'
-  if (!draft.mainAgent.trim()) errors.mainAgent = 'Agente principal obrigatório'
+  if (!draft.mainAgentId) errors.mainAgent = 'Agente principal obrigatório'
   return errors
 }
 
@@ -39,6 +40,9 @@ interface ProfileWorkspaceProps {
 export function ProfileWorkspace({ profile, onProfileChange }: ProfileWorkspaceProps) {
   const navigate = useNavigate()
   const [draft, setDraft] = useState<ProfileDraft>(() => toDraft(profile))
+  // Perfil já criado sempre tem função salva: começa true para que trocar o agente nunca a sobrescreva.
+  // Só o onboarding (perfil novo) começa false. Se a função for trocada à mão, continua true.
+  const [roleTouched, setRoleTouched] = useState(true)
   const [stagedAvatar, setStagedAvatar] = useState<StagedAvatar | null>(null)
   const [avatarRemoved, setAvatarRemoved] = useState(false)
   const [avatarError, setAvatarError] = useState<string | null>(null)
@@ -60,7 +64,7 @@ export function ProfileWorkspace({ profile, onProfileChange }: ProfileWorkspaceP
     avatarRemoved ||
     draft.username.trim() !== saved.username ||
     draft.role !== saved.role ||
-    draft.mainAgent.trim() !== saved.mainAgent ||
+    draft.mainAgentId !== saved.mainAgentId ||
     draft.rank !== saved.rank ||
     draft.bio.trim() !== saved.bio.trim() ||
     serializeSchedule(draft.schedule) !== serializeSchedule(saved.schedule)
@@ -70,6 +74,16 @@ export function ProfileWorkspace({ profile, onProfileChange }: ProfileWorkspaceP
   function patchDraft(patch: Partial<ProfileDraft>) {
     setDraft((current) => ({ ...current, ...patch }))
     setStatus(null)
+  }
+
+  function handleRoleChange(role: RoleType) {
+    setRoleTouched(true)
+    patchDraft({ role })
+  }
+
+  // Função e agente são salvos de forma independente; o agente só sugere a função quando ela ainda não foi decidida.
+  function handleAgentChange(agent: Agent) {
+    patchDraft({ mainAgentId: agent.id, ...(roleTouched ? {} : { role: agent.role }) })
   }
 
   async function handlePickAvatar(file: File) {
@@ -126,7 +140,7 @@ export function ProfileWorkspace({ profile, onProfileChange }: ProfileWorkspaceP
           avatar_url: avatarUrl,
           bio: draft.bio.trim() || null,
           role: draft.role,
-          main_agent: draft.mainAgent.trim(),
+          main_agent_id: draft.mainAgentId,
           rank: draft.rank,
           availability_schedule: serializeSchedule(draft.schedule),
         })
@@ -194,7 +208,7 @@ export function ProfileWorkspace({ profile, onProfileChange }: ProfileWorkspaceP
                   avatar_url: previewAvatarUrl,
                   role: draft.role,
                   rank: draft.rank,
-                  main_agent: draft.mainAgent,
+                  main_agent_id: draft.mainAgentId,
                   bio: draft.bio.trim() || null,
                 }}
               />
@@ -255,6 +269,8 @@ export function ProfileWorkspace({ profile, onProfileChange }: ProfileWorkspaceP
               draft={draft}
               errors={errors}
               onChange={patchDraft}
+              onRoleChange={handleRoleChange}
+              onAgentChange={handleAgentChange}
               onBlurField={(field) => setTouched((current) => ({ ...current, [field]: true }))}
               avatarUrl={previewAvatarUrl}
               avatarError={avatarError}

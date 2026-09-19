@@ -21,7 +21,9 @@ interface OnboardingData {
   username: string
   avatar: StagedAvatar | null
   role: RoleType | null
-  mainAgent: string
+  // Vira true quando o jogador escolhe a função à mão; a partir daí trocar o agente não a sobrescreve.
+  roleTouched: boolean
+  mainAgentId: string | null
   rank: RankType | null
   bio: string
 }
@@ -30,7 +32,8 @@ const INITIAL_DATA: OnboardingData = {
   username: '',
   avatar: null,
   role: null,
-  mainAgent: '',
+  roleTouched: false,
+  mainAgentId: null,
   rank: null,
   bio: '',
 }
@@ -58,7 +61,7 @@ export function Onboarding() {
   }
 
   async function finishOnboarding(bio: string | null) {
-    if (!session || !data.role || !data.rank) return
+    if (!session || !data.role || !data.rank || !data.mainAgentId) return
 
     setSubmitting(true)
     setSubmitError(null)
@@ -80,7 +83,7 @@ export function Onboarding() {
       avatar_url: avatarUrl,
       bio,
       role: data.role,
-      main_agent: data.mainAgent.trim(),
+      main_agent_id: data.mainAgentId,
       rank: data.rank,
     })
 
@@ -128,10 +131,13 @@ export function Onboarding() {
           {step === 3 && (
             <StepGameProfile
               role={data.role}
-              mainAgent={data.mainAgent}
+              mainAgentId={data.mainAgentId}
               rank={data.rank}
-              onRoleChange={(role) => setData((d) => ({ ...d, role }))}
-              onMainAgentChange={(mainAgent) => setData((d) => ({ ...d, mainAgent }))}
+              onRoleChange={(role) => setData((d) => ({ ...d, role, roleTouched: true }))}
+              // Pré-preenche a função com a do agente, salvo se o jogador já a escolheu. O banco não liga os dois.
+              onAgentChange={(agent) =>
+                setData((d) => ({ ...d, mainAgentId: agent.id, role: d.roleTouched ? d.role : agent.role }))
+              }
               onRankChange={(rank) => setData((d) => ({ ...d, rank }))}
               onNext={() => setStep(4)}
               onBack={() => setStep(2)}

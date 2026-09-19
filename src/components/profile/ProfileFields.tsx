@@ -1,7 +1,9 @@
 import { useRef, type ChangeEvent } from 'react'
+import type { Agent } from '../../lib/agents'
 import { AVATAR_ACCEPT } from '../../lib/avatar'
 import { SCHEDULE_WINDOWS, type RankType, type RoleType, type ScheduleWindow } from '../../lib/gameData'
-import { BIO_MAX_LENGTH, MAIN_AGENT_MAX_LENGTH, USERNAME_MAX_LENGTH } from '../../lib/profileLimits'
+import { BIO_MAX_LENGTH, USERNAME_MAX_LENGTH } from '../../lib/profileLimits'
+import { AgentSelect } from '../AgentSelect'
 import { FormSection as Section } from '../FormSection'
 import { focusRing, inputClass, optionClass, smallLabelClass } from '../formStyles'
 import { RankSelector } from '../RankSelector'
@@ -10,7 +12,7 @@ import { RoleSelector } from '../RoleSelector'
 export interface ProfileDraft {
   username: string
   role: RoleType
-  mainAgent: string
+  mainAgentId: string
   rank: RankType
   bio: string
   schedule: ScheduleWindow[]
@@ -25,6 +27,9 @@ interface ProfileFieldsProps {
   draft: ProfileDraft
   errors: ProfileFieldErrors
   onChange: (patch: Partial<ProfileDraft>) => void
+  // Função e agente têm handlers próprios: escolher o agente pode pré-preencher a função (ver ProfileWorkspace).
+  onRoleChange: (role: RoleType) => void
+  onAgentChange: (agent: Agent) => void
   onBlurField: (field: 'username' | 'mainAgent') => void
   avatarUrl: string | null
   avatarError: string | null
@@ -36,6 +41,8 @@ export function ProfileFields({
   draft,
   errors,
   onChange,
+  onRoleChange,
+  onAgentChange,
   onBlurField,
   avatarUrl,
   avatarError,
@@ -130,24 +137,18 @@ export function ProfileFields({
         </Section>
 
         <Section title="Função principal" aside="Selecione 1">
-          <RoleSelector value={draft.role} onChange={(role) => onChange({ role })} />
+          <RoleSelector value={draft.role} onChange={onRoleChange} />
         </Section>
 
         <Section title="Agente principal">
-          <label htmlFor="profile-main-agent" className="sr-only">
-            Agente principal
-          </label>
-          <input
+          <AgentSelect
             id="profile-main-agent"
-            type="text"
-            value={draft.mainAgent}
-            maxLength={MAIN_AGENT_MAX_LENGTH}
-            onChange={(e) => onChange({ mainAgent: e.target.value })}
+            label="Agente principal"
+            value={draft.mainAgentId}
+            onChange={onAgentChange}
             onBlur={() => onBlurField('mainAgent')}
-            aria-invalid={errors.mainAgent ? true : undefined}
-            aria-describedby={errors.mainAgent ? 'profile-main-agent-error' : undefined}
-            className={inputClass}
-            placeholder="Ex: Jett, Sova, Omen..."
+            invalid={errors.mainAgent !== undefined}
+            describedBy={errors.mainAgent ? 'profile-main-agent-error' : undefined}
           />
           {errors.mainAgent && (
             <p id="profile-main-agent-error" role="alert" className="mt-1.5 text-xs text-danger">

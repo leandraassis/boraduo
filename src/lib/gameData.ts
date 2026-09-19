@@ -13,6 +13,14 @@ export const ROLE_INFO: Record<RoleType, { label: string; description: string }>
   initiator: { label: 'Iniciador', description: 'Info & flashes' },
 }
 
+// Classes literais (o Tailwind só gera o que aparece por inteiro no código); tokens em index.css.
+export const ROLE_TEXT_CLASS: Record<RoleType, string> = {
+  duelist: 'text-role-duelist',
+  initiator: 'text-role-initiator',
+  controller: 'text-role-controller',
+  sentinel: 'text-role-sentinel',
+}
+
 export const RANK_INFO: Record<RankType, { label: string; color: string }> = {
   iron: { label: 'Ferro', color: '#6b7280' },
   bronze: { label: 'Bronze', color: '#a9784f' },
