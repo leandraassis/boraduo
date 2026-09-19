@@ -37,11 +37,11 @@ Passo a passo:
 3. No Supabase, em *Authentication → URL Configuration*, defina o **Site URL** com o domínio de produção e
    liste em **Redirect URLs** apenas os domínios reais (produção e, se usar, o de preview da Vercel).
 4. Aplique as migrations de [`supabase/migrations`](supabase/migrations) em ordem, se o projeto for novo.
-5. Confira a checklist de [`docs/checklist-seguranca.md`](docs/checklist-seguranca.md), principalmente a seção
-   **Configuração manual**: a **confirmação de e-mail precisa estar ligada** antes de abrir para o público.
+5. Antes de abrir para o público, ligue a **confirmação de e-mail** em *Authentication → Sign In / Providers →
+   Email → Confirm email* (durante o desenvolvimento ela fica desligada, só para testes).
 
 > **Sobre CORS:** a API do Supabase responde a qualquer origem e não permite restringir por domínio; a proteção
-> vem da RLS, do Site/Redirect URL do Auth e da CSP acima (detalhes em `docs/checklist-seguranca.md`).
+> vem da RLS, do Site/Redirect URL do Auth e da CSP acima.
 
 ## Moderação (admin)
 

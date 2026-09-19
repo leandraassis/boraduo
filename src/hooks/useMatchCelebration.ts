@@ -20,7 +20,7 @@ function isMatchRow(row: unknown): row is MatchRow {
   return typeof r.id === 'string' && typeof r.user_a_id === 'string' && typeof r.user_b_id === 'string'
 }
 
-// Detecta em tempo real matches criados enquanto a tela de swipe está aberta. `postgres_changes` não
+// Detecta em tempo real matches criados enquanto a tela Discover (qualquer modo) está aberta. `postgres_changes` não
 // aceita filtro OR entre colunas, então há um binding por coluna (user_a_id e user_b_id) no mesmo canal
 // e os eventos se juntam aqui. Quem não estava na tela não recebe nada retroativo: só a notificação.
 export function useMatchCelebration(userId: string | undefined) {

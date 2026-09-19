@@ -45,6 +45,6 @@ export function signUpErrorMessage(error: SupabaseErrorLike): string {
 
 export function createProfileErrorMessage(error: SupabaseErrorLike): string {
   if (isNetworkError(error)) return NETWORK_MESSAGE
-  if (error.code === '23514') return 'Revise os campos: o username tem de 3 a 30 caracteres e o agente, até 30.'
+  if (error.code === '23514') return 'Revise os campos: o username tem de 3 a 30 caracteres.'
   return 'Não foi possível criar seu perfil. Tente de novo.'
 }

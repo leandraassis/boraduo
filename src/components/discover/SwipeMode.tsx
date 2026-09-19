@@ -1,23 +1,15 @@
-import { useNavigate } from 'react-router-dom'
-import { useMatchCelebration } from '../../hooks/useMatchCelebration'
-import { useSession } from '../../hooks/useSession'
 import { useSwipeDeck } from '../../hooks/useSwipeDeck'
 import type { DeckFilters } from '../../lib/deck'
 import { DeckEmptyState, DeckError, DeckSkeleton } from './DeckStates'
-import { MatchCelebrationModal, type MatchCelebrationMe } from './MatchCelebrationModal'
 import { SwipeDeck } from './SwipeDeck'
 
 interface SwipeModeProps {
   filters: DeckFilters
-  me: MatchCelebrationMe | null
   onOpenFilters: () => void
 }
 
-export function SwipeMode({ filters, me, onOpenFilters }: SwipeModeProps) {
-  const { session } = useSession()
-  const navigate = useNavigate()
+export function SwipeMode({ filters, onOpenFilters }: SwipeModeProps) {
   const deck = useSwipeDeck(filters)
-  const celebration = useMatchCelebration(session?.user.id)
   const waitingForMore = deck.cards.length === 0 && deck.loadingMore
 
   let content
@@ -39,18 +31,6 @@ export function SwipeMode({ filters, me, onOpenFilters }: SwipeModeProps) {
         </p>
       )}
       {content}
-      {celebration.current && (
-        <MatchCelebrationModal
-          me={me}
-          match={celebration.current}
-          onSendMessage={() => {
-            const { matchId } = celebration.current!
-            celebration.dismiss()
-            navigate(`/app/matches/${matchId}`)
-          }}
-          onDismiss={celebration.dismiss}
-        />
-      )}
     </>
   )
 }
