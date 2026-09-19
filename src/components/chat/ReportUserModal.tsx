@@ -1,5 +1,5 @@
 import { useRef, useState, type FormEvent } from 'react'
-import { REPORT_CATEGORIES, REPORT_DETAILS_MAX, type ReportCategory } from '../../lib/moderation'
+import { ModerationError, REPORT_CATEGORIES, REPORT_DETAILS_MAX, type ReportCategory } from '../../lib/moderation'
 import { dangerButtonClass, errorBannerClass, inputClass, optionClass, secondaryButtonClass, smallLabelClass } from '../formStyles'
 import { Modal } from '../Modal'
 
@@ -14,17 +14,21 @@ export function ReportUserModal({ username, onSubmit, onClose }: ReportUserModal
   const [category, setCategory] = useState<ReportCategory | null>(null)
   const [details, setDetails] = useState('')
   const [sending, setSending] = useState(false)
-  const [failed, setFailed] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!category || sending) return
     setSending(true)
-    setFailed(false)
+    setErrorMessage(null)
     try {
       await onSubmit(category, details)
-    } catch {
-      setFailed(true)
+    } catch (error) {
+      setErrorMessage(
+        error instanceof ModerationError && error.rateLimited
+          ? 'Você enviou denúncias demais em pouco tempo. Aguarde um minuto e tente de novo.'
+          : 'Não foi possível enviar a denúncia. Tente de novo.',
+      )
       setSending(false)
     }
   }
@@ -93,9 +97,9 @@ export function ReportUserModal({ username, onSubmit, onClose }: ReportUserModal
           />
         </div>
 
-        {failed && (
+        {errorMessage && (
           <p role="alert" className={`${errorBannerClass} mt-4`}>
-            Não foi possível enviar a denúncia. Tente de novo.
+            {errorMessage}
           </p>
         )}
 

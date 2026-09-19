@@ -1,16 +1,21 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Tables } from '../types/database'
 
 export function useProfile(userId: string | undefined) {
   const [trackedUserId, setTrackedUserId] = useState(userId)
+  const [attempt, setAttempt] = useState(0)
   const [profile, setProfile] = useState<Tables<'profiles'> | null>(null)
   const [loading, setLoading] = useState(!!userId)
+  // Falha de rede é diferente de "perfil não existe": quem consome não pode tratar as duas do mesmo jeito
+  // (senão uma queda de conexão mandaria um usuário já cadastrado de volta ao onboarding).
+  const [error, setError] = useState(false)
 
   if (trackedUserId !== userId) {
     setTrackedUserId(userId)
     setProfile(null)
     setLoading(!!userId)
+    setError(false)
   }
 
   useEffect(() => {
@@ -23,16 +28,27 @@ export function useProfile(userId: string | undefined) {
       .select('*')
       .eq('id', userId)
       .maybeSingle()
-      .then(({ data }) => {
+      .then(({ data, error: fetchError }) => {
         if (cancelled) return
-        setProfile(data)
+        if (fetchError) {
+          setError(true)
+        } else {
+          setError(false)
+          setProfile(data)
+        }
         setLoading(false)
       })
 
     return () => {
       cancelled = true
     }
-  }, [userId])
+  }, [userId, attempt])
 
-  return { profile, loading, setProfile }
+  const retry = useCallback(() => {
+    setError(false)
+    setLoading(true)
+    setAttempt((n) => n + 1)
+  }, [])
+
+  return { profile, loading, error, setProfile, retry }
 }

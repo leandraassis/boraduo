@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { AuthLayout } from '../components/auth/AuthLayout'
 import { BoltIcon } from '../components/icons'
+import { ScreenError } from '../components/ScreenStates'
 import { OnboardingHero } from '../components/onboarding/OnboardingHero'
 import { OnboardingProgress } from '../components/onboarding/OnboardingProgress'
 import { StepAccount } from '../components/onboarding/StepAccount'
@@ -12,6 +13,7 @@ import { ONBOARDING_STEPS } from '../components/onboarding/steps'
 import { useProfile } from '../hooks/useProfile'
 import { useSession } from '../hooks/useSession'
 import { uploadAvatar, type StagedAvatar } from '../lib/avatar'
+import { createProfileErrorMessage } from '../lib/errors'
 import type { RankType, RoleType } from '../lib/gameData'
 import { supabase } from '../lib/supabase'
 
@@ -36,7 +38,7 @@ const INITIAL_DATA: OnboardingData = {
 export function Onboarding() {
   const navigate = useNavigate()
   const { session, loading: sessionLoading } = useSession()
-  const { profile, loading: profileLoading } = useProfile(session?.user.id)
+  const { profile, loading: profileLoading, error: profileError, retry } = useProfile(session?.user.id)
   const [step, setStep] = useState(1)
   const [data, setData] = useState<OnboardingData>(INITIAL_DATA)
   const [submitting, setSubmitting] = useState(false)
@@ -48,6 +50,11 @@ export function Onboarding() {
 
   if (!sessionLoading && session && !profileLoading && profile) {
     return <Navigate to="/app" replace />
+  }
+
+  // Sem saber se o perfil já existe não dá para continuar: criar de novo colidiria com o existente.
+  if (session && profileError) {
+    return <ScreenError title="Não foi possível verificar sua conta" onRetry={retry} />
   }
 
   async function finishOnboarding(bio: string | null) {
@@ -79,8 +86,9 @@ export function Onboarding() {
 
     setSubmitting(false)
 
-    if (error) {
-      setSubmitError(error.message)
+    // 23505: o perfil já existe (envio duplicado); segue para o app em vez de acusar erro.
+    if (error && error.code !== '23505') {
+      setSubmitError(createProfileErrorMessage(error))
       return
     }
 

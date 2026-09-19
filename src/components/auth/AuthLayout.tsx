@@ -28,7 +28,7 @@ export function AuthLayout({ children, centered = false }: { children: ReactNode
         <main className={`flex flex-1 flex-col pb-10 ${centered ? 'justify-center' : ''}`}>{children}</main>
 
         <footer className="border-t border-line py-6 text-center text-xs leading-5 text-ink-muted">
-          BoraDuo é uma plataforma comunitária independente, não afiliada nem endossada pela Riot Games, Inc.
+          BoraDuo é uma plataforma independente, não afiliada nem endossada pela Riot Games, Inc.
         </footer>
       </div>
     </div>

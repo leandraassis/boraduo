@@ -513,6 +513,19 @@ mensagens ou denúncias por segundo. Para o MVP, o mínimo recomendado:
   denúncias, mesmo que simples (ex: N mensagens por minuto por usuário), para evitar
   flood de chat e denúncias em massa.
 
+**Implementado (Fase 8.2)**: limites no banco, valendo também para chamadas REST diretas —
+trigger `BEFORE INSERT` em `messages` (máx. **30 mensagens/min por usuário**, somando todas as
+conversas) e checagem dentro de `fn_report_user` (máx. **3 denúncias/min por usuário**). Ao
+estourar, o banco levanta `rate_limit_exceeded` e a interface mostra uma mensagem clara. Swipes
+não têm limite no MVP.
+
+**Risco aceito conscientemente — Leaked password protection**: a checagem de senhas vazadas
+(HaveIBeenPwned) do Supabase Auth é recurso do plano Pro, indisponível no free tier. Fica de
+fora do MVP, sem workaround por fora; o advisor `auth_leaked_password_protection` continuará
+aparecendo. A política de senha (mín. 8 caracteres, com minúscula, maiúscula, número e símbolo) é
+aplicada pelo próprio Supabase Auth (verificado: senha fraca retorna `422 weak_password`) e
+espelhada no formulário de cadastro.
+
 ### 8.9 Evasão de banimento
 Fora de escopo do MVP: nada impede um usuário banido de criar uma nova conta com
 outro e-mail. Verificação de identidade/dispositivo para prevenir isso é um
@@ -529,6 +542,12 @@ aqui como risco aceito conscientemente, não como omissão.
   (incluindo o domínio de preview da Vercel, se usado) antes de ir pra produção —
   evita que outro site use a mesma anon key contra seu projeto de forma abusiva,
   embora RLS já limite o dano possível.
+  **Verificado na Fase 8.2**: a API do Supabase (REST, Auth e Storage) responde
+  `Access-Control-Allow-Origin: *` para qualquer origem e **não oferece configuração de CORS
+  por domínio** — o item não é executável como escrito. A defesa efetiva é a RLS/RPC (a anon
+  key é pública por design) somada a: **Site URL e Redirect URLs** do Auth restritos aos
+  domínios reais (impede uso do fluxo de auth a partir de outros sites), limites de taxa do
+  Auth e CSP no app (`connect-src`, em `vercel.json`).
 - Variáveis de ambiente (URL e anon key do Supabase) configuradas nas Environment
   Variables do projeto na Vercel, não commitadas no repositório.
 

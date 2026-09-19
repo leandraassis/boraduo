@@ -38,7 +38,7 @@ function ProfileSkeleton() {
 
 export function Profile() {
   const { session, loading: sessionLoading } = useSession()
-  const { profile, loading: profileLoading, setProfile } = useProfile(session?.user.id)
+  const { profile, loading: profileLoading, setProfile, retry } = useProfile(session?.user.id)
 
   if (sessionLoading || profileLoading) {
     return <ProfileSkeleton />
@@ -51,7 +51,7 @@ export function Profile() {
           <p className="text-sm text-ink-muted">Não foi possível carregar seu perfil.</p>
           <button
             type="button"
-            onClick={() => window.location.reload()}
+            onClick={retry}
             className="mt-4 cursor-pointer rounded-xl border border-line-strong bg-surface px-4 py-2 text-sm font-medium text-ink transition hover:border-brand"
           >
             Tentar novamente

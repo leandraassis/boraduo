@@ -1,7 +1,7 @@
 import { useAvailability } from '../../contexts/availability'
 
 export function AvailabilityPanel() {
-  const { isAvailable: available, loaded, saving, error, requestToggle } = useAvailability()
+  const { isAvailable: available, loaded, loadFailed, retryLoad, saving, error, requestToggle } = useAvailability()
 
   return (
     <section
@@ -48,6 +48,14 @@ export function AvailabilityPanel() {
       {error && (
         <p role="alert" className="mt-3 text-sm text-danger">
           {error}
+        </p>
+      )}
+      {loadFailed && (
+        <p role="alert" className="mt-3 text-sm text-danger">
+          Não foi possível carregar sua disponibilidade.{' '}
+          <button type="button" onClick={retryLoad} className="cursor-pointer font-medium text-match hover:underline">
+            Tentar novamente
+          </button>
         </p>
       )}
     </section>

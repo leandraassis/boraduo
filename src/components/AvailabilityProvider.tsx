@@ -18,6 +18,8 @@ export function AvailabilityProvider({ children }: { children: ReactNode }) {
 
   const [isAvailable, setIsAvailable] = useState(false)
   const [loaded, setLoaded] = useState(false)
+  const [loadFailed, setLoadFailed] = useState(false)
+  const [loadAttempt, setLoadAttempt] = useState(0)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showWarning, setShowWarning] = useState(false)
@@ -38,15 +40,20 @@ export function AvailabilityProvider({ children }: { children: ReactNode }) {
       .select('is_available')
       .eq('id', userId)
       .single()
-      .then(({ data }) => {
-        if (cancelled || !data) return
+      .then(({ data, error: loadError }) => {
+        if (cancelled) return
+        if (loadError || !data) {
+          setLoadFailed(true)
+          return
+        }
+        setLoadFailed(false)
         setIsAvailable(data.is_available)
         setLoaded(true)
       })
     return () => {
       cancelled = true
     }
-  }, [userId])
+  }, [userId, loadAttempt])
 
   // Canal privado (RLS em realtime.messages exige conta ativa). Todo usuário logado entra para
   // poder ver quem está presente; só quem tem is_available = true dá track().
@@ -144,6 +151,11 @@ export function AvailabilityProvider({ children }: { children: ReactNode }) {
     void persist(!isAvailable)
   }, [saving, loaded, isAvailable, persist])
 
+  const retryLoad = useCallback(() => {
+    setLoadFailed(false)
+    setLoadAttempt((n) => n + 1)
+  }, [])
+
   const retryPresence = useCallback(() => {
     setPresenceStatus('connecting')
     setAttempt((n) => n + 1)
@@ -153,12 +165,14 @@ export function AvailabilityProvider({ children }: { children: ReactNode }) {
     () => ({
       isAvailable,
       loaded,
+      loadFailed,
+      retryLoad,
       saving,
       error,
       requestToggle,
       presence: { status: presenceStatus, onlineIds, retry: retryPresence },
     }),
-    [isAvailable, loaded, saving, error, requestToggle, presenceStatus, onlineIds, retryPresence],
+    [isAvailable, loaded, loadFailed, retryLoad, saving, error, requestToggle, presenceStatus, onlineIds, retryPresence],
   )
 
   return (

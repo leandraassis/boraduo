@@ -64,10 +64,12 @@ function ChatView({ conversation, currentUserId, patchConversation }: ChatViewPr
         patchMessage(pendingId, { status: 'failed' })
         if (error instanceof SendMessageError && error.forbidden) {
           patchConversation(matchId, { readOnly: true })
+        } else if (error instanceof SendMessageError && error.rateLimited) {
+          showToast('Você está enviando mensagens rápido demais. Aguarde alguns segundos e tente de novo.')
         }
       }
     },
-    [matchId, currentUserId, replaceMessage, patchMessage, patchConversation],
+    [matchId, currentUserId, replaceMessage, patchMessage, patchConversation, showToast],
   )
 
   // Bloqueio (voluntário ou por denúncia) encerra a conversa na hora: composer vira aviso de somente leitura.

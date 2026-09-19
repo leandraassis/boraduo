@@ -430,6 +430,7 @@ export type Database = {
         }[]
       }
       fn_mark_match_read: { Args: { p_match_id: string }; Returns: undefined }
+      fn_get_unread_matches_count: { Args: never; Returns: number }
       fn_get_notifications: {
         Args: { p_limit?: number }
         Returns: {

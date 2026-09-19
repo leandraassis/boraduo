@@ -1,6 +1,6 @@
 import { useAvailability } from '../contexts/availability'
 
-// Uma única instância por vez: no ícone de Perfil da BottomNav e, quando a nav está oculta (chat no
+// Uma única instância por vez: no ícone de Perfil da AppNav e, quando a nav está oculta (chat no
 // mobile), fixa no canto da tela — assim o ponto aparece em qualquer tela de /app/*.
 export function AvailabilityDot({ className = 'absolute -top-0.5 -right-1' }: { className?: string }) {
   const { isAvailable } = useAvailability()

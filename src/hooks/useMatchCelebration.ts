@@ -38,11 +38,17 @@ export function useMatchCelebration(userId: string | undefined) {
       seen.add(row.id)
 
       const otherId = row.user_a_id === userId ? row.user_b_id : row.user_a_id
-      const { data } = await supabase
-        .from('profiles')
-        .select('id, username, avatar_url, role, rank')
-        .eq('id', otherId)
-        .maybeSingle()
+      // Falha de rede aqui perderia o modal sem aviso: tenta de novo antes de desistir (a notificação persiste).
+      let data = null
+      for (let attempt = 0; attempt < 3 && !data && !cancelled; attempt++) {
+        if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 1000 * attempt))
+        const result = await supabase
+          .from('profiles')
+          .select('id, username, avatar_url, role, rank')
+          .eq('id', otherId)
+          .maybeSingle()
+        data = result.data
+      }
       if (cancelled || !data) return
 
       setQueue((q) => [

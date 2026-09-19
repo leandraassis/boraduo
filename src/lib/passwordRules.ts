@@ -12,6 +12,7 @@ export interface PasswordRule {
 export const PASSWORD_RULES: PasswordRule[] = [
   { id: 'length', label: `Mínimo de ${PASSWORD_MIN_LENGTH} caracteres`, test: (p) => p.length >= PASSWORD_MIN_LENGTH },
   { id: 'number', label: 'Pelo menos um número', test: (p) => /[0-9]/.test(p) },
+  { id: 'lowercase', label: 'Uma letra minúscula', test: (p) => /[a-z]/.test(p) },
   { id: 'uppercase', label: 'Uma letra maiúscula', test: (p) => /[A-Z]/.test(p) },
   { id: 'symbol', label: 'Um símbolo especial (!@#$%^&*)', test: (p) => SYMBOL_REGEX.test(p) },
 ]

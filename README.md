@@ -17,6 +17,32 @@ npm run dev
 - O schema, as policies (RLS) e as funções RPC estão versionados em [`supabase/migrations`](supabase/migrations).
 - `npm run build` gera o bundle de produção e `npm run lint` roda o ESLint.
 
+## Deploy (Vercel + Supabase)
+
+O app é uma SPA estática (Vite). O [`vercel.json`](vercel.json) já traz o que a Vercel precisa:
+
+- **Rewrite para `index.html`:** sem ele, atualizar a página em `/app/matches` ou abrir um link direto
+  devolve 404.
+- **Cabeçalhos de segurança:** CSP estrita (`script-src 'self'`; conexões só com o próprio domínio e
+  `*.supabase.co`, incluindo o WebSocket do Realtime), `X-Frame-Options: DENY`, `nosniff`,
+  `Referrer-Policy` e `Permissions-Policy`. Testado com o build de produção, sem violações. Se um dia o app
+  passar a carregar algo de outro domínio (analytics, fontes externas), a CSP precisa ser ajustada.
+
+Passo a passo:
+
+1. Importe o repositório na Vercel (framework **Vite**; build `npm run build`, saída `dist`).
+2. Em *Settings → Environment Variables*, cadastre **`VITE_SUPABASE_URL`** e **`VITE_SUPABASE_ANON_KEY`** para
+   *Production* e *Preview*. Só a anon key entra aqui; **nunca** a service role key. As variáveis são embutidas no
+   build, então mudar o valor exige um novo deploy.
+3. No Supabase, em *Authentication → URL Configuration*, defina o **Site URL** com o domínio de produção e
+   liste em **Redirect URLs** apenas os domínios reais (produção e, se usar, o de preview da Vercel).
+4. Aplique as migrations de [`supabase/migrations`](supabase/migrations) em ordem, se o projeto for novo.
+5. Confira a checklist de [`docs/checklist-seguranca.md`](docs/checklist-seguranca.md), principalmente a seção
+   **Configuração manual**: a **confirmação de e-mail precisa estar ligada** antes de abrir para o público.
+
+> **Sobre CORS:** a API do Supabase responde a qualquer origem e não permite restringir por domínio; a proteção
+> vem da RLS, do Site/Redirect URL do Auth e da CSP acima (detalhes em `docs/checklist-seguranca.md`).
+
 ## Moderação (admin)
 
 O MVP **não tem painel de administração**. Toda ação de moderação é feita direto no banco, pelo

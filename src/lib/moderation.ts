@@ -20,6 +20,15 @@ export async function blockUser(targetId: string): Promise<void> {
   if (error) throw error
 }
 
+export class ModerationError extends Error {
+  readonly rateLimited: boolean
+
+  constructor(rateLimited: boolean) {
+    super(rateLimited ? 'rate_limited' : 'failed')
+    this.rateLimited = rateLimited
+  }
+}
+
 // A denúncia também cria o bloqueio (par normalizado) no servidor.
 export async function reportUser(targetId: string, category: ReportCategory, details: string): Promise<void> {
   const { error } = await supabase.rpc('fn_report_user', {
@@ -27,7 +36,7 @@ export async function reportUser(targetId: string, category: ReportCategory, det
     p_category: category,
     p_details: details.trim(),
   })
-  if (error) throw error
+  if (error) throw new ModerationError(error.message.includes('rate_limit_exceeded'))
 }
 
 export interface BlockedUser {

@@ -2,7 +2,7 @@ import { useAvailability } from '../../contexts/availability'
 import { Switch } from '../Switch'
 
 export function AvailableToggleBar() {
-  const { isAvailable, loaded, saving, error, requestToggle } = useAvailability()
+  const { isAvailable, loaded, loadFailed, retryLoad, saving, error, requestToggle } = useAvailability()
 
   return (
     <section
@@ -31,6 +31,14 @@ export function AvailableToggleBar() {
       {error && (
         <p role="alert" className="mt-2 text-xs text-danger">
           {error}
+        </p>
+      )}
+      {loadFailed && (
+        <p role="alert" className="mt-2 text-xs text-danger">
+          Não foi possível carregar sua disponibilidade.{' '}
+          <button type="button" onClick={retryLoad} className="cursor-pointer font-medium text-match hover:underline">
+            Tentar novamente
+          </button>
         </p>
       )}
     </section>

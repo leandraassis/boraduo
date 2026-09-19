@@ -3,6 +3,7 @@ import { Navigate, useNavigate } from 'react-router-dom'
 import { AuthLayout } from '../components/auth/AuthLayout'
 import { focusRing } from '../components/formStyles'
 import { LockIcon } from '../components/icons'
+import { ScreenError, ScreenSkeleton } from '../components/ScreenStates'
 import { useProfile } from '../hooks/useProfile'
 import { useSession } from '../hooks/useSession'
 import { supabase } from '../lib/supabase'
@@ -15,7 +16,7 @@ export function Banned() {
   const { session, loading: sessionLoading } = useSession()
   const navigate = useNavigate()
   const userId = session?.user.id
-  const { profile, loading, setProfile } = useProfile(userId)
+  const { profile, loading, error, setProfile, retry } = useProfile(userId)
   const [loggingOut, setLoggingOut] = useState(false)
   const [logoutError, setLogoutError] = useState(false)
 
@@ -54,8 +55,9 @@ export function Banned() {
   }
 
   // Sem esperar a sessão o perfil viria nulo no 1º render e a página redirecionaria para o onboarding.
-  if (sessionLoading || loading) return null
+  if (sessionLoading || loading) return <ScreenSkeleton />
   if (!session) return <Navigate to="/login" replace />
+  if (error) return <ScreenError title="Não foi possível carregar sua conta" onRetry={retry} />
   if (!profile) return <Navigate to="/onboarding" replace />
   if (profile.status !== 'banned') return <Navigate to="/app/discover" replace />
 

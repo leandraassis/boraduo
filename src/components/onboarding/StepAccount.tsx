@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
+import { signUpErrorMessage } from '../../lib/errors'
 import { PASSWORD_MIN_LENGTH, PASSWORD_RULES } from '../../lib/passwordRules'
 import { supabase } from '../../lib/supabase'
 import { PasswordField, TextField } from '../auth/TextField'
@@ -36,7 +37,7 @@ export function StepAccount() {
     setSubmitting(false)
 
     if (error) {
-      setSubmitError(error.message)
+      setSubmitError(signUpErrorMessage(error))
       return
     }
     if (!data.session) {

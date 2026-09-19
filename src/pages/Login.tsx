@@ -6,6 +6,7 @@ import { PasswordField, TextField } from '../components/auth/TextField'
 import { errorBannerClass, gradientTextClass, primaryButtonClass } from '../components/formStyles'
 import { ArrowRightIcon, BoltIcon, LockIcon, MailIcon } from '../components/icons'
 import { useSession } from '../hooks/useSession'
+import { loginErrorMessage } from '../lib/errors'
 import { supabase } from '../lib/supabase'
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -38,7 +39,7 @@ export function Login() {
     setSubmitting(false)
 
     if (error) {
-      setSubmitError(error.message)
+      setSubmitError(loginErrorMessage(error))
       return
     }
 
@@ -53,8 +54,7 @@ export function Login() {
             Suba de rank com duos que jogam <span className={gradientTextClass}>sério e sem toxicidade.</span>
           </h2>
           <p className="mt-6 max-w-[520px] text-lg leading-7 text-ink-muted">
-            Encontre parceiros alinhados com sua função, seu elo e seus horários de treino. Zero roleta-russa
-            de ranqueada.
+            Encontre players alinhados com sua função, seu elo e seus horários de jogo.
           </p>
           <DuoSampleCard className="mt-10 max-w-[560px]" />
         </div>
@@ -64,7 +64,7 @@ export function Login() {
             <div>
               <h1 className="text-[28px] leading-9 font-bold tracking-[-0.02em]">Bem-vindo de volta, agente</h1>
               <p className="mt-2 text-sm leading-5 text-ink-muted">
-                Entre na sua conta para achar sua duo perfeita sem toxicidade.
+                Entre na sua conta para achar seu duo perfeito sem toxicidade.
               </p>
             </div>
             <BoltIcon className="mt-1 h-6 w-6 shrink-0 text-match" />

@@ -22,8 +22,17 @@
 }
 
 :root {
-  /* Altura da bottom nav do /app/* (conteúdo + safe area); páginas e toast reservam esse espaço. */
+  /* Navegação do /app/*: barra inferior abaixo de 1024px (altura + safe area) e barra lateral a partir
+     dela (largura). Páginas e toast reservam o espaço da que estiver ativa. */
   --app-nav-h: calc(4rem + env(safe-area-inset-bottom));
+  --app-nav-w: 0px;
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --app-nav-h: 0px;
+    --app-nav-w: 15rem;
+  }
 }
 
 @keyframes sheet-up {

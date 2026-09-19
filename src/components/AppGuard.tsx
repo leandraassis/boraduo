@@ -3,11 +3,12 @@ import { Navigate, useLocation } from 'react-router-dom'
 import { useProfile } from '../hooks/useProfile'
 import { useSession } from '../hooks/useSession'
 import { supabase } from '../lib/supabase'
+import { ScreenError, ScreenSkeleton } from './ScreenStates'
 
 export function AppGuard({ children }: { children: ReactNode }) {
   const { session, loading: sessionLoading } = useSession()
   const userId = session?.user.id
-  const { profile, loading: profileLoading } = useProfile(userId)
+  const { profile, loading: profileLoading, error: profileError, retry } = useProfile(userId)
   const { pathname } = useLocation()
   const [bannedMidSession, setBannedMidSession] = useState(false)
 
@@ -42,11 +43,15 @@ export function AppGuard({ children }: { children: ReactNode }) {
   }, [userId, pathname])
 
   if (sessionLoading || (session && profileLoading)) {
-    return null
+    return <ScreenSkeleton />
   }
 
   if (!session) {
     return <Navigate to="/login" replace />
+  }
+
+  if (profileError) {
+    return <ScreenError title="Não foi possível carregar sua conta" onRetry={retry} />
   }
 
   if (!profile) {

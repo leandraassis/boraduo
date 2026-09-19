@@ -65,6 +65,13 @@ export function sortConversations(conversations: Conversation[]): Conversation[]
   return [...conversations].sort((a, b) => b.lastMessageAt.localeCompare(a.lastMessageAt) || a.matchId.localeCompare(b.matchId))
 }
 
+// Quantas conversas (não mensagens) têm algo não lido; match bloqueado e mensagem própria não contam.
+export async function fetchUnreadMatchesCount(): Promise<number> {
+  const { data, error } = await supabase.rpc('fn_get_unread_matches_count')
+  if (error) throw error
+  return data
+}
+
 export async function markMatchRead(matchId: string): Promise<void> {
   const { error } = await supabase.rpc('fn_mark_match_read', { p_match_id: matchId })
   if (error) throw error
@@ -87,10 +94,12 @@ export async function fetchMessages(matchId: string): Promise<{ messages: ChatMe
 
 export class SendMessageError extends Error {
   readonly forbidden: boolean
+  readonly rateLimited: boolean
 
-  constructor(forbidden: boolean) {
-    super(forbidden ? 'forbidden' : 'failed')
+  constructor(forbidden: boolean, rateLimited = false) {
+    super(forbidden ? 'forbidden' : rateLimited ? 'rate_limited' : 'failed')
     this.forbidden = forbidden
+    this.rateLimited = rateLimited
   }
 }
 
@@ -101,7 +110,7 @@ export async function sendMessage(matchId: string, senderId: string, content: st
     .insert({ match_id: matchId, sender_id: senderId, content })
     .select('id, sender_id, content, created_at')
     .single()
-  if (error) throw new SendMessageError(error.code === '42501')
+  if (error) throw new SendMessageError(error.code === '42501', error.message.includes('rate_limit_exceeded'))
   return { id: data.id, senderId: data.sender_id, content: data.content, createdAt: data.created_at }
 }
 
