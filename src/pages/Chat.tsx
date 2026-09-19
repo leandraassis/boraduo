@@ -5,6 +5,7 @@ import { MessageComposer } from '../components/chat/MessageComposer'
 import { MessageList } from '../components/chat/MessageList'
 import { ChatError, ChatNotFound, ChatSkeleton, ReadOnlyNotice } from '../components/chat/ChatStates'
 import type { MatchesOutletContext } from '../components/matches/context'
+import { useToast } from '../contexts/toast'
 import { useChatMessages } from '../hooks/useChatMessages'
 import { useMessageRealtime } from '../hooks/useMessageRealtime'
 import { markMatchRead, sendMessage, SendMessageError, type Conversation } from '../lib/chat'
@@ -17,6 +18,7 @@ interface ChatViewProps {
 
 function ChatView({ conversation, currentUserId, patchConversation }: ChatViewProps) {
   const { matchId } = conversation
+  const { showToast } = useToast()
   const chat = useChatMessages(matchId)
   const { messages, addMessage, receiveMessage, reloadSilently, replaceMessage, patchMessage } = chat
 
@@ -68,6 +70,13 @@ function ChatView({ conversation, currentUserId, patchConversation }: ChatViewPr
     [matchId, currentUserId, replaceMessage, patchMessage, patchConversation],
   )
 
+  // Bloqueio (voluntário ou por denúncia) encerra a conversa na hora: composer vira aviso de somente leitura.
+  function handleModerated(kind: 'blocked' | 'reported') {
+    patchConversation(matchId, { readOnly: true })
+    const name = conversation.other.username
+    showToast(kind === 'blocked' ? `${name} foi bloqueado.` : `Denúncia enviada. ${name} foi bloqueado.`)
+  }
+
   function handleSend(content: string) {
     const pendingId = `pending-${crypto.randomUUID()}`
     addMessage({ id: pendingId, senderId: currentUserId, content, createdAt: new Date().toISOString(), status: 'sending' })
@@ -83,7 +92,7 @@ function ChatView({ conversation, currentUserId, patchConversation }: ChatViewPr
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <ChatHeader conversation={conversation} />
+      <ChatHeader conversation={conversation} onModerated={handleModerated} />
 
       {chat.status === 'loading' && <ChatSkeleton />}
       {chat.status === 'error' && <ChatError onRetry={chat.retry} />}

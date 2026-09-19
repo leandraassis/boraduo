@@ -153,16 +153,19 @@ linha por par normalizado, lida nos dois sentidos pela RLS.
 | `id` | uuid (PK) | |
 | `user_a_id` | uuid, FK → profiles | Par normalizado |
 | `user_b_id` | uuid, FK → profiles | |
+| `blocker_id` | uuid, FK → profiles | Quem criou o bloqueio (o denunciante, se veio de denúncia); sempre um dos dois do par |
 | `report_id` | uuid, nullable, FK → reports | Presente se originado de denúncia |
 | `created_at` | timestamptz | |
 
-Constraint: `unique(user_a_id, user_b_id)`.
+Constraint: `unique(user_a_id, user_b_id)`; `check (blocker_id in (user_a_id, user_b_id))`.
 
 Efeito: os dois usuários deixam de aparecer um para o outro; conversa existente vira
 somente leitura.
 
 **Reversão**: `report_id` presente → só `permission_level = admin` remove.
-`report_id` nulo (voluntário) → o próprio usuário que bloqueou remove quando quiser.
+`report_id` nulo (voluntário) → o próprio usuário que bloqueou (`blocker_id`) remove quando
+quiser; o bloqueado nunca remove. Se quem já bloqueou voluntariamente depois denuncia o mesmo
+usuário, o bloqueio passa a ser de denúncia (`report_id` preenchido).
 
 ### 3.8 `notifications`
 Central de notificações — persistente, visível mesmo se o usuário não estava online
@@ -260,13 +263,15 @@ sobreviver a troca de dispositivo nem ser auditável.
 - **`messages` (insert)**: permitido apenas com match confirmado, sem bloqueio ativo
   e ambos `status = active`.
 - **`notifications`**: usuário só lê/atualiza as próprias.
-- **`reports` (insert)**: qualquer usuário `status = active`; select restrito a admin.
+- **`reports` (insert)**: **sem policy de insert direto pelo client** — a denúncia nasce só por
+  `fn_report_user` (SECURITY DEFINER: exige conta ativa, limita `details` a 500 caracteres e cria o
+  bloqueio junto). Select restrito a admin.
 - **`blocks` (select)**: usuário só vê linhas onde é `user_a_id` ou `user_b_id` — sem
   isso, a query de descoberta não consegue nem excluir bloqueados da própria lista.
 - **`blocks` (insert)**: **sem policy de insert direto pelo client** — bloqueio
   (voluntário ou por denúncia) também passa por função `SECURITY DEFINER`. Ver 8.2.
-- **`blocks` (delete)**: `report_id IS NULL` → quem criou o bloqueio; `report_id IS
-  NOT NULL` → só admin.
+- **`blocks` (delete)**: `report_id IS NULL` → quem criou o bloqueio (`blocker_id`, nunca o
+  bloqueado); `report_id IS NOT NULL` → só admin (que também precisa de select em `blocks`).
 - **Alteração de `profiles.status` e `permission_level`**: update restrito a admin
   (reforçado pelo trigger da seção 8.1, não só pela policy).
 

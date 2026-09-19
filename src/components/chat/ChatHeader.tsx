@@ -7,7 +7,12 @@ import { ArrowLeftIcon } from '../icons'
 import { RoleIcon } from '../RoleIcon'
 import { ChatOptionsMenu } from './ChatOptionsMenu'
 
-export function ChatHeader({ conversation }: { conversation: Conversation }) {
+interface ChatHeaderProps {
+  conversation: Conversation
+  onModerated: (kind: 'blocked' | 'reported') => void
+}
+
+export function ChatHeader({ conversation, onModerated }: ChatHeaderProps) {
   const { other } = conversation
   const rank = RANK_INFO[other.rank]
 
@@ -37,7 +42,12 @@ export function ChatHeader({ conversation }: { conversation: Conversation }) {
         </p>
       </div>
 
-      <ChatOptionsMenu username={other.username} />
+      <ChatOptionsMenu
+        username={other.username}
+        otherId={other.id}
+        readOnly={conversation.readOnly}
+        onModerated={onModerated}
+      />
     </header>
   )
 }

@@ -18,3 +18,7 @@ export function optionClass(selected: boolean) {
     selected ? 'border-brand bg-brand/15 text-ink' : 'border-line bg-field text-ink-muted hover:border-line-strong'
   }`
 }
+
+export const dangerButtonClass = `flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-danger py-3 text-sm font-semibold text-ink shadow-glow-danger transition hover:brightness-110 ${focusRing} disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none disabled:hover:brightness-100`
+
+export const secondaryButtonClass = `w-full cursor-pointer rounded-xl py-3 text-sm font-medium text-ink-muted transition hover:text-ink ${focusRing} disabled:cursor-not-allowed disabled:opacity-50`

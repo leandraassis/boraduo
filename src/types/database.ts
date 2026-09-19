@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       blocks: {
         Row: {
+          blocker_id: string
           created_at: string
           id: string
           report_id: string | null
@@ -23,6 +24,7 @@ export type Database = {
           user_b_id: string
         }
         Insert: {
+          blocker_id: string
           created_at?: string
           id?: string
           report_id?: string | null
@@ -30,6 +32,7 @@ export type Database = {
           user_b_id: string
         }
         Update: {
+          blocker_id?: string
           created_at?: string
           id?: string
           report_id?: string | null
@@ -37,6 +40,13 @@ export type Database = {
           user_b_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "blocks_blocker_id_fkey"
+            columns: ["blocker_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "blocks_report_id_fkey"
             columns: ["report_id"]
@@ -358,6 +368,18 @@ export type Database = {
     }
     Functions: {
       fn_block_user: { Args: { p_target_id: string }; Returns: undefined }
+      fn_get_blocked_users: {
+        Args: never
+        Returns: {
+          block_id: string
+          created_at: string
+          other_avatar_url: string | null
+          other_id: string
+          other_rank: Database["public"]["Enums"]["rank_type"]
+          other_username: string
+          reversible: boolean
+        }[]
+      }
       fn_create_match_from_swipe: {
         Args: { p_swiped_id: string }
         Returns: undefined

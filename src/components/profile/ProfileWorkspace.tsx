@@ -6,6 +6,7 @@ import { supabase } from '../../lib/supabase'
 import type { Tables } from '../../types/database'
 import { ProfileCard } from '../ProfileCard'
 import { AvailabilityPanel } from './AvailabilityPanel'
+import { BlockedUsersSection } from './BlockedUsersSection'
 import { ProfileFields, type ProfileDraft, type ProfileFieldErrors } from './ProfileFields'
 
 type Status = { kind: 'success' | 'error'; message: string } | null
@@ -245,6 +246,8 @@ export function ProfileWorkspace({ profile, onProfileChange }: ProfileWorkspaceP
                 </p>
               )}
             </section>
+
+            <BlockedUsersSection />
           </div>
 
           <div className="order-2 md:order-none">

@@ -1,67 +1,23 @@
-import { useEffect, useRef, useState } from 'react'
-import { focusRing, primaryButtonClass } from '../formStyles'
+import { useEffect, useState } from 'react'
+import { blockUser, reportUser, type ReportCategory } from '../../lib/moderation'
+import { focusRing } from '../formStyles'
 import { MoreVerticalIcon } from '../icons'
+import { BlockUserModal } from './BlockUserModal'
+import { ReportUserModal } from './ReportUserModal'
 
-type PlaceholderAction = 'block' | 'report'
+type Action = 'block' | 'report'
 
-const ACTION_COPY: Record<PlaceholderAction, { menu: string; title: string }> = {
-  block: { menu: 'Bloquear usuário', title: 'Bloquear usuário' },
-  report: { menu: 'Denunciar usuário', title: 'Denunciar usuário' },
-}
-
-function PlaceholderModal({
-  action,
-  username,
-  onClose,
-}: {
-  action: PlaceholderAction
+interface ChatOptionsMenuProps {
   username: string
-  onClose: () => void
-}) {
-  const closeRef = useRef<HTMLButtonElement>(null)
-
-  useEffect(() => {
-    closeRef.current?.focus()
-  }, [])
-
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [onClose])
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-canvas/85 p-4 backdrop-blur-[20px]"
-      onClick={onClose}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="chat-placeholder-title"
-        className="w-full max-w-sm rounded-2xl border border-line-strong bg-surface p-6 shadow-glow-brand"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 id="chat-placeholder-title" className="text-lg leading-6 font-semibold tracking-[-0.01em] text-ink">
-          {ACTION_COPY[action].title}
-        </h2>
-        <p className="mt-2 text-sm leading-5 text-ink-muted">
-          Esta ação ainda não está disponível. Em breve você poderá {action === 'block' ? 'bloquear' : 'denunciar'}{' '}
-          <strong className="text-ink">{username}</strong> por aqui.
-        </p>
-        <button ref={closeRef} type="button" onClick={onClose} className={`${primaryButtonClass} mt-6`}>
-          Entendi
-        </button>
-      </div>
-    </div>
-  )
+  otherId: string
+  // Conversa já encerrada (bloqueio ou banimento): bloquear de novo não faria nada.
+  readOnly: boolean
+  onModerated: (kind: 'blocked' | 'reported') => void
 }
 
-export function ChatOptionsMenu({ username }: { username: string }) {
+export function ChatOptionsMenu({ username, otherId, readOnly, onModerated }: ChatOptionsMenuProps) {
   const [open, setOpen] = useState(false)
-  const [action, setAction] = useState<PlaceholderAction | null>(null)
+  const [action, setAction] = useState<Action | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -72,10 +28,27 @@ export function ChatOptionsMenu({ username }: { username: string }) {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [open])
 
-  function choose(next: PlaceholderAction) {
+  function choose(next: Action) {
     setOpen(false)
     setAction(next)
   }
+
+  async function confirmBlock() {
+    await blockUser(otherId)
+    setAction(null)
+    onModerated('blocked')
+  }
+
+  async function submitReport(category: ReportCategory, details: string) {
+    await reportUser(otherId, category, details)
+    setAction(null)
+    onModerated('reported')
+  }
+
+  const items: { key: Action; label: string; danger: boolean }[] = [
+    ...(readOnly ? [] : [{ key: 'block' as const, label: 'Bloquear usuário', danger: false }]),
+    { key: 'report', label: 'Denunciar usuário', danger: true },
+  ]
 
   return (
     <div className="relative">
@@ -98,24 +71,27 @@ export function ChatOptionsMenu({ username }: { username: string }) {
             aria-label="Opções da conversa"
             className="absolute top-full right-0 z-40 mt-2 w-52 overflow-hidden rounded-xl border border-line-strong bg-surface p-1 shadow-2xl"
           >
-            {(Object.keys(ACTION_COPY) as PlaceholderAction[]).map((key) => (
+            {items.map((item) => (
               <button
-                key={key}
+                key={item.key}
                 type="button"
                 role="menuitem"
-                onClick={() => choose(key)}
+                onClick={() => choose(item.key)}
                 className={`block w-full cursor-pointer rounded-lg px-3 py-2.5 text-left text-sm transition hover:bg-field ${focusRing} ${
-                  key === 'report' ? 'text-danger' : 'text-ink'
+                  item.danger ? 'text-danger' : 'text-ink'
                 }`}
               >
-                {ACTION_COPY[key].menu}
+                {item.label}
               </button>
             ))}
           </div>
         </>
       )}
 
-      {action && <PlaceholderModal action={action} username={username} onClose={() => setAction(null)} />}
+      {action === 'block' && <BlockUserModal username={username} onConfirm={confirmBlock} onClose={() => setAction(null)} />}
+      {action === 'report' && (
+        <ReportUserModal username={username} onSubmit={submitReport} onClose={() => setAction(null)} />
+      )}
     </div>
   )
 }
