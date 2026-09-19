@@ -154,3 +154,10 @@ body,
 body {
   margin: 0;
 }
+
+/* Tema só escuro: sem fundo global, o branco padrão do navegador aparece sempre que algo passa do fim do
+   container (lista do AgentSelect, rolagem elástica). */
+html,
+body {
+  background: var(--color-canvas);
+}
