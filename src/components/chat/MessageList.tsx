@@ -8,9 +8,17 @@ interface MessageListProps {
   truncated: boolean
   canRetry: boolean
   onRetry: (messageId: string) => void
+  emptyMessage?: string
 }
 
-export function MessageList({ messages, currentUserId, truncated, canRetry, onRetry }: MessageListProps) {
+export function MessageList({
+  messages,
+  currentUserId,
+  truncated,
+  canRetry,
+  onRetry,
+  emptyMessage = 'Nenhuma mensagem ainda. Diga oi!',
+}: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -25,7 +33,7 @@ export function MessageList({ messages, currentUserId, truncated, canRetry, onRe
       )}
 
       {messages.length === 0 ? (
-        <p className="py-10 text-center text-sm text-ink-muted">Nenhuma mensagem ainda. Diga oi!</p>
+        <p className="py-10 text-center text-sm text-ink-muted">{emptyMessage}</p>
       ) : (
         <ul>
           {messages.map((message, index) => {

@@ -1,3 +1,4 @@
+import { MESSAGES_LOAD_LIMIT, type ChatMessage } from './chat'
 import type { ReportCategory } from './moderation'
 import type { RankType, RoleType } from './gameData'
 import { supabase } from './supabase'
@@ -129,4 +130,15 @@ export async function unbanUser(targetId: string): Promise<void> {
 export async function reviewReport(reportId: string): Promise<void> {
   const { error } = await supabase.rpc('fn_admin_review_report', { p_report_id: reportId })
   if (error) throw error
+}
+
+// Conversa entre denunciante e denunciado daquela denúncia específica. Só funciona enquanto a
+// denúncia está pendente (o servidor recusa depois de revisada, mesmo que a UI já tenha escondido
+// o botão). O client nunca escolhe os dois usuários — a RPC resolve isso a partir do report_id.
+export async function fetchReportConversation(reportId: string): Promise<{ messages: ChatMessage[]; truncated: boolean }> {
+  const { data, error } = await supabase.rpc('fn_admin_get_report_conversation', { p_report_id: reportId })
+  if (error) throw error
+
+  const messages = data.map((row) => ({ id: row.id, senderId: row.sender_id, content: row.content, createdAt: row.created_at }))
+  return { messages, truncated: data.length === MESSAGES_LOAD_LIMIT }
 }

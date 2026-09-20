@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useToast } from '../../contexts/toast'
-import { fetchUserReports, reviewReport, type AdminReport } from '../../lib/admin'
+import { fetchReportConversation, fetchUserReports, reviewReport, type AdminReport } from '../../lib/admin'
+import type { ChatMessage } from '../../lib/chat'
 import { REPORT_CATEGORIES } from '../../lib/moderation'
+import { MessageList } from '../chat/MessageList'
 import { focusRing } from '../formStyles'
 
 const dateFormat = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -12,6 +14,14 @@ interface PanelState {
   attempt: number
   status: 'loading' | 'ready' | 'error'
   reports: AdminReport[]
+}
+
+interface ConversationState {
+  reportId: string
+  status: 'loading' | 'ready' | 'error'
+  messages: ChatMessage[]
+  truncated: boolean
+  errorMessage: string
 }
 
 interface UserReportsPanelProps {
@@ -28,9 +38,31 @@ export function UserReportsPanel({ id, userId, onReportReviewed }: UserReportsPa
   const [state, setState] = useState<PanelState>({ attempt: 0, status: 'loading', reports: [] })
   const [reviewingId, setReviewingId] = useState<string | null>(null)
   const [reviewFailedId, setReviewFailedId] = useState<string | null>(null)
+  // Só uma conversa aberta por vez (mesmo padrão de "reportsOpen" do AdminUserRow).
+  const [conversation, setConversation] = useState<ConversationState | null>(null)
 
   if (state.attempt !== attempt) {
     setState({ attempt, status: 'loading', reports: [] })
+  }
+
+  function toggleConversation(reportId: string) {
+    if (conversation?.reportId === reportId) {
+      setConversation(null)
+      return
+    }
+    setConversation({ reportId, status: 'loading', messages: [], truncated: false, errorMessage: '' })
+    fetchReportConversation(reportId)
+      .then(({ messages, truncated }) => {
+        setConversation((c) => (c?.reportId === reportId ? { ...c, status: 'ready', messages, truncated } : c))
+      })
+      .catch((error: { message?: string }) => {
+        // "report not pending": a denúncia foi revisada por outro admin entre o carregamento da lista e este clique.
+        const errorMessage =
+          error?.message === 'report not pending'
+            ? 'Essa denúncia já foi revisada — a conversa não está mais disponível aqui.'
+            : 'Não foi possível carregar a conversa.'
+        setConversation((c) => (c?.reportId === reportId ? { ...c, status: 'error', errorMessage } : c))
+      })
   }
 
   async function handleReview(reportId: string) {
@@ -40,6 +72,8 @@ export function UserReportsPanel({ id, userId, onReportReviewed }: UserReportsPa
     try {
       await reviewReport(reportId)
       setState((s) => ({ ...s, reports: s.reports.map((r) => (r.id === reportId ? { ...r, pending: false } : r)) }))
+      // A conversa dessa denúncia deixa de estar disponível (só é servida enquanto pending): fecha se estava aberta.
+      setConversation((c) => (c?.reportId === reportId ? null : c))
       onReportReviewed()
       showToast('Denúncia marcada como revisada.')
     } catch {
@@ -98,14 +132,23 @@ export function UserReportsPanel({ id, userId, onReportReviewed }: UserReportsPa
                   <span className="text-ink-muted">{dateFormat.format(new Date(report.createdAt))}</span>
                 </p>
                 {report.pending && (
-                  <button
-                    type="button"
-                    onClick={() => handleReview(report.id)}
-                    disabled={reviewingId !== null}
-                    className={`shrink-0 cursor-pointer rounded-lg border border-line-strong bg-field px-2.5 py-1 text-xs font-medium whitespace-nowrap text-ink transition hover:border-brand disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`}
-                  >
-                    {reviewingId === report.id ? 'Marcando...' : 'Marcar como revisada'}
-                  </button>
+                  <div className="flex shrink-0 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleConversation(report.id)}
+                      className={`cursor-pointer rounded-lg border border-line-strong bg-field px-2.5 py-1 text-xs font-medium whitespace-nowrap text-ink transition hover:border-brand ${focusRing}`}
+                    >
+                      {conversation?.reportId === report.id ? 'Ocultar conversa' : 'Ver conversa'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleReview(report.id)}
+                      disabled={reviewingId !== null}
+                      className={`cursor-pointer rounded-lg border border-line-strong bg-field px-2.5 py-1 text-xs font-medium whitespace-nowrap text-ink transition hover:border-brand disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`}
+                    >
+                      {reviewingId === report.id ? 'Marcando...' : 'Marcar como revisada'}
+                    </button>
+                  </div>
                 )}
               </div>
               {report.details && <p className="mt-1 text-sm leading-5 break-words whitespace-pre-wrap text-ink">{report.details}</p>}
@@ -114,6 +157,34 @@ export function UserReportsPanel({ id, userId, onReportReviewed }: UserReportsPa
                 <p role="alert" className="mt-1 text-xs text-danger">
                   Não foi possível marcar como revisada. Tente de novo.
                 </p>
+              )}
+
+              {conversation?.reportId === report.id && (
+                <div className="mt-2 overflow-hidden rounded-xl border border-line">
+                  {conversation.status === 'loading' && (
+                    <div role="status" aria-busy="true" aria-label="Carregando conversa" className="space-y-2 p-4">
+                      <div className="h-3 w-2/3 animate-pulse rounded bg-line" />
+                      <div className="h-3 w-1/2 animate-pulse rounded bg-line" />
+                    </div>
+                  )}
+                  {conversation.status === 'error' && (
+                    <p role="alert" className="p-4 text-sm text-danger">
+                      {conversation.errorMessage}
+                    </p>
+                  )}
+                  {conversation.status === 'ready' && (
+                    <div className="flex h-72 flex-col bg-canvas">
+                      <MessageList
+                        messages={conversation.messages}
+                        currentUserId={userId}
+                        truncated={conversation.truncated}
+                        canRetry={false}
+                        onRetry={() => {}}
+                        emptyMessage="Nenhuma mensagem trocada entre os dois ainda."
+                      />
+                    </div>
+                  )}
+                </div>
               )}
             </li>
           ))}

@@ -406,6 +406,15 @@ export type Database = {
     }
     Functions: {
       fn_admin_ban_user: { Args: { p_target_id: string }; Returns: undefined }
+      fn_admin_get_report_conversation: {
+        Args: { p_report_id: string }
+        Returns: {
+          content: string
+          created_at: string
+          id: string
+          sender_id: string
+        }[]
+      }
       fn_admin_get_user_reports: {
         Args: { p_target_id: string }
         Returns: {
