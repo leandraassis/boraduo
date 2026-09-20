@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import type { Agent } from '../../lib/agents'
 import { deleteAvatar, uploadAvatar, validateAvatarFile, type StagedAvatar } from '../../lib/avatar'
 import { parseSchedule, serializeSchedule, type RoleType } from '../../lib/gameData'
@@ -262,6 +262,20 @@ export function ProfileWorkspace({ profile, onProfileChange }: ProfileWorkspaceP
             </section>
 
             <BlockedUsersSection />
+
+            {profile.permission_level === 'admin' && (
+              <section className="order-6 rounded-2xl border border-line bg-surface p-4 sm:p-5 md:order-none">
+                <div className="flex items-center justify-between gap-4">
+                  <p className="text-sm text-ink-muted">Administração</p>
+                  <Link
+                    to="/app/admin/users"
+                    className="shrink-0 rounded-xl border border-line-strong bg-field px-4 py-2 text-sm font-medium whitespace-nowrap text-ink transition hover:border-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-match"
+                  >
+                    Gerenciar usuários
+                  </Link>
+                </div>
+              </section>
+            )}
           </div>
 
           <div className="order-2 md:order-none">

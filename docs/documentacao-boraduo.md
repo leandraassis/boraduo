@@ -15,8 +15,8 @@ O produto combina duas mecânicas de descoberta complementares:
   direto sem precisar de reciprocidade — para quem quer jogar *agora*, não depois.
 
 Escopo do MVP: apenas Valorant, sem verificação de rank, sem moderação automática de
-conteúdo, sem painel administrativo dedicado (admin opera direto no banco via
-Supabase).
+conteúdo, com painel administrativo mínimo (só banir/desbanir; o resto da moderação
+o admin faz direto no banco via Supabase).
 
 ## 2. Personas e usuários do sistema
 
@@ -34,8 +34,12 @@ Tem todas as permissões do usuário comum, mais:
 - Reversão de bloqueios originados de denúncia
 
 Contas admin são criadas diretamente no banco (não há fluxo de convite/promoção no
-MVP). Não existe painel administrativo dedicado — toda ação de moderação é feita
-manualmente no Supabase (editor de tabelas ou SQL).
+MVP). Banir e desbanir contas é feito por uma tela interna (`/app/admin/users`), visível só
+para admin, que parte da fila de denunciados e permite buscar por trecho do username ou por
+e-mail exato (o username não é único, então a tela mostra id curto e outros dados para
+distinguir homônimos). Banir já marca como revisadas as denúncias pendentes contra o banido.
+Ignorar uma denúncia sem banir (marcar como revisada), reversão de bloqueio por denúncia e
+promoção a admin continuam manuais no Supabase (editor de tabelas ou SQL).
 
 > Nível `moderator` (intermediário entre usuário comum e admin, com chat de
 > moderação dedicado e tela de gestão) está desenhado como evolução futura, mas
@@ -185,7 +189,9 @@ comportamento de cada tela.
 
 - Nível de permissão `moderator` e ferramentas de moderação dedicadas (chat de
   moderação, tela de gestão/promoção)
-- Painel administrativo — toda ação de admin é manual, direto no Supabase
+- Painel administrativo completo — só existe a tela mínima de banir/desbanir (adicionada
+  após o lançamento); revisão de denúncias, promoção a admin e chat de admin com usuários
+  seguem manuais, direto no Supabase
 - Suspensão temporária de conta (só existem os estados `active` e `banned`)
 - Verificação/validação de rank (é autodeclarado)
 - Push notifications e notificações por e-mail

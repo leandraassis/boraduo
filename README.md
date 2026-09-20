@@ -45,8 +45,41 @@ Passo a passo:
 
 ## Moderação (admin)
 
-O MVP **não tem painel de administração**. Toda ação de moderação é feita direto no banco, pelo
-**SQL Editor do Supabase** (Dashboard → SQL Editor), que executa com a service role. Isso é intencional:
+Banir e desbanir têm uma tela interna; o resto da moderação é feito direto no banco.
+
+### Banir e desbanir pela interface
+
+Quem tem `permission_level = 'admin'` vê, em **Perfil → Administração → Gerenciar usuários**
+(`/app/admin/users`), o botão **Banir** (com confirmação) ou **Desbanir** em cada linha. Admins não podem ser
+banidos. Quem não é admin não vê o link e, se abrir a URL direto, é redirecionado.
+
+Como achar quem banir:
+
+- **Fila de denúncias (tela inicial):** só usuários ativos com denúncia pendente, do mais recentemente
+  denunciado para o mais antigo. "N denúncias pendentes" abre categoria, texto, data e quem denunciou.
+- **Busca:** por **trecho do username** (mínimo 3 caracteres) ou por **e-mail exato**. A busca substitui a fila e
+  procura em todos, banidos inclusive. Abas `Ativos | Banidos | Todos` e o chip "Só com denúncias pendentes"
+  refinam a lista.
+- **Homônimos:** o `username` não é único. Cada linha e a confirmação de banimento mostram o **id curto**
+  (`#8d4f3adb`), função, rank, agente e data de cadastro para não banir a pessoa errada.
+
+Detalhes técnicos:
+
+- A tela só chama as RPCs `fn_admin_list_users`, `fn_admin_get_user_reports`, `fn_admin_ban_user` e
+  `fn_admin_unban_user` (SECURITY DEFINER, exigem admin ativo, `EXECUTE` só para `authenticated`). O client nunca
+  faz update em `profiles`.
+- A listagem é uma RPC porque a RLS de `profiles` esconde os banidos até do admin. O e-mail só é devolvido na
+  busca por e-mail exata.
+- **Banir marca como revisadas** as denúncias pendentes contra o banido (o modal avisa quantas), então ele sai da
+  fila e, se for desbanido, as denúncias antigas não voltam; uma denúncia nova contra ele entra na fila normalmente.
+  Desbanir não mexe em denúncias. Ignorar uma denúncia sem banir, e o banimento feito à mão pelo SQL, continuam
+  manuais: use o `update reports set status = 'reviewed'` abaixo.
+- A promoção a admin, a revisão de denúncias e a reversão de bloqueio por denúncia continuam manuais
+  (abaixo). Não há chat de admin: quem quiser contestar um banimento procura o suporte fora do app.
+
+## Moderação manual (SQL Editor)
+
+O restante é feito pelo **SQL Editor do Supabase** (Dashboard → SQL Editor), que executa com a service role:
 
 - Nenhuma dessas ações passa pelo client. Um trigger (`fn_protect_profile_privileged_columns`) rejeita
   qualquer mudança de `permission_level`, `status`, `banned_by` e `banned_at` feita por quem não é admin,
@@ -69,7 +102,10 @@ select id, username from profiles where permission_level = 'admin';
 update profiles set permission_level = 'admin' where id = '<uuid>';
 ```
 
-### Banir
+### Banir (alternativa manual)
+
+O caminho normal é a tela acima; o SQL abaixo continua valendo, mas **não** marca as denúncias do banido como
+revisadas (só a tela faz isso).
 
 ```sql
 update profiles
@@ -85,7 +121,7 @@ Efeito imediato para a conta banida (aplicado pela RLS, não pela interface):
   bloqueio total (o app percebe o banimento a cada navegação e quando a aba volta ao foco);
 - para quem **não** está banido, a conversa continua visível como histórico somente leitura.
 
-### Reverter um banimento
+### Reverter um banimento (alternativa manual)
 
 ```sql
 update profiles
@@ -93,7 +129,8 @@ set status = 'active', banned_by = null, banned_at = null
 where id = '<uuid>';
 ```
 
-A tela de bloqueio libera o acesso sozinha quando a aba volta ao foco, ou no próximo login.
+A tela de bloqueio libera o acesso sozinha quando a aba volta ao foco, ou no próximo login (vale para o
+desbanimento feito pela tela e pelo SQL).
 
 ### Revisar a fila de denúncias
 

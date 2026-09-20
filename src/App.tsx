@@ -3,6 +3,7 @@ import { AppGuard } from './components/AppGuard'
 import { AppShell } from './components/AppShell'
 import { AuthGuard } from './components/AuthGuard'
 import { ChatPlaceholder } from './components/chat/ChatStates'
+import { AdminUsers } from './pages/AdminUsers'
 import { Banned } from './pages/Banned'
 import { Chat } from './pages/Chat'
 import { Discover } from './pages/Discover'
@@ -43,6 +44,7 @@ function App() {
         </Route>
         <Route path="/app/notifications" element={<Notifications />} />
         <Route path="/app/profile" element={<Profile />} />
+        <Route path="/app/admin/users" element={<AdminUsers />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/login" replace />} />

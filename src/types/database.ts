@@ -392,6 +392,44 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      fn_admin_ban_user: { Args: { p_target_id: string }; Returns: undefined }
+      fn_admin_get_user_reports: {
+        Args: { p_target_id: string }
+        Returns: {
+          category: Database["public"]["Enums"]["report_category"]
+          created_at: string
+          details: string | null
+          id: string
+          reporter_username: string | null
+          status: Database["public"]["Enums"]["report_status"]
+        }[]
+      }
+      fn_admin_list_users: {
+        Args: {
+          p_cursor_id?: string
+          p_cursor_sort_at?: string
+          p_limit?: number
+          p_only_reported?: boolean
+          p_query?: string
+          p_status?: Database["public"]["Enums"]["account_status"]
+        }
+        Returns: {
+          avatar_url: string | null
+          banned_at: string | null
+          created_at: string
+          email: string | null
+          id: string
+          main_agent_id: string
+          pending_reports: number
+          permission_level: Database["public"]["Enums"]["permission_level_type"]
+          rank: Database["public"]["Enums"]["rank_type"]
+          role: Database["public"]["Enums"]["role_type"]
+          sort_at: string
+          status: Database["public"]["Enums"]["account_status"]
+          username: string
+        }[]
+      }
+      fn_admin_unban_user: { Args: { p_target_id: string }; Returns: undefined }
       fn_block_user: { Args: { p_target_id: string }; Returns: undefined }
       fn_get_blocked_users: {
         Args: never

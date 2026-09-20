@@ -2,7 +2,7 @@
 
 ## 1. Visão geral
 
-App de descoberta de teammates para Valorant com mecânica de swipe (estilo Tinder).
+App de descoberta de teammates para Valorant com mecânica de swipe.
 Dois caminhos de descoberta coexistem:
 
 1. **Swipe assíncrono**: usuário curte/rejeita perfis; curtida mútua vira match.
@@ -11,7 +11,8 @@ Dois caminhos de descoberta coexistem:
 
 Escopo do MVP: apenas Valorant, rank autodeclarado, sem curadoria automática de
 conteúdo, sem ferramentas de moderação além de denúncia/bloqueio simples e banimento
-administrativo direto no Supabase (sem painel dedicado — ver seção 8).
+administrativo (tela mínima `/app/admin/users` para banir/desbanir — ver seção 6.8; o
+restante da moderação continua manual no Supabase).
 
 Web app, mobile-first. Sem integrações externas; notificações apenas in-app,
 persistidas até o usuário abrir o app (sem push nativo, sem e-mail).
@@ -248,7 +249,9 @@ sobreviver a troca de dispositivo nem ser auditável.
    quiser.
 
 ### 4.5 Banimento
-1. Admin altera `profiles.status` para `banned`, preenchendo `banned_by`/`banned_at`.
+1. Admin bane pela tela `/app/admin/users` (seção 6.8), que chama `fn_admin_ban_user`: a RPC
+   altera `profiles.status` para `banned`, preenchendo `banned_by`/`banned_at`. (Continua
+   possível fazer o mesmo à mão no SQL Editor do Supabase.)
 2. RLS geral nega, para quem tem `status != active`: descoberta, leitura/escrita em
    `messages` (inclusive histórico antigo), presença Realtime, inserts em `reports`
    e `blocks`.
@@ -257,7 +260,8 @@ sobreviver a troca de dispositivo nem ser auditável.
    permitida a uma conta banida.
 4. Do lado de quem não está banido: continua enxergando o histórico do chat
    (read-only), só não recebe mensagens novas.
-5. Reversão: admin volta `status` para `active`.
+5. Reversão: admin desbane pela mesma tela (`fn_admin_unban_user`): `status` volta para
+   `active` e `banned_by`/`banned_at` são limpos.
 
 ## 5. RLS — policies principais
 
@@ -294,7 +298,13 @@ sobreviver a troca de dispositivo nem ser auditável.
 - **`blocks` (delete)**: `report_id IS NULL` → quem criou o bloqueio (`blocker_id`, nunca o
   bloqueado); `report_id IS NOT NULL` → só admin (que também precisa de select em `blocks`).
 - **Alteração de `profiles.status` e `permission_level`**: update restrito a admin
-  (reforçado pelo trigger da seção 8.1, não só pela policy).
+  (reforçado pelo trigger da seção 8.1, não só pela policy). O client **não** faz esse update:
+  banir/desbanir pela UI passa só por `fn_admin_ban_user` / `fn_admin_unban_user` (seção 8.2).
+- **Listagem de usuários para o admin**: a policy de leitura de `profiles` só deixa o admin ver
+  perfis ativos (e o próprio), então um banido ficaria invisível e não teria como ser desbanido.
+  A tela de administração lê por `fn_admin_list_users` (SECURITY DEFINER, exige admin ativo) e
+  as denúncias de um usuário por `fn_admin_get_user_reports`. Na busca por e-mail a RPC lê
+  `auth.users` e devolve o e-mail; em qualquer outra listagem o campo vem nulo.
 
 ## 6. Navegação e telas
 
@@ -305,7 +315,8 @@ Bottom nav com 4 destinos + telas/modais secundários:
 ```
 
 Telas fora da bottom nav: Onboarding (pré-login), Chat individual (a partir de
-Matches), Report/Block (modal), Tela de bloqueio total (usuário banido).
+Matches), Report/Block (modal), Tela de bloqueio total (usuário banido), Administração de
+usuários `/app/admin/users` (só admin, sem item na bottom nav — ver 6.8).
 
 **Indicador de disponibilidade**: como `is_available` é global (persiste entre
 telas), um dot discreto fixo no header/bottom nav sinaliza quando ativo, mesmo fora
@@ -399,6 +410,51 @@ em telas largas.
 Não é prioridade otimizar profundamente desktop — o produto é mobile-first por
 natureza; responsividade aqui significa "não quebra e permanece usável".
 
+### 6.8 Administração de usuários (`/app/admin/users`)
+Tela interna, mínima, só para `permission_level = admin`:
+- **Acesso**: a rota renderiza apenas para admin; qualquer outro perfil é redirecionado para
+  `/app/discover` antes de montar qualquer conteúdo, e nenhum link para ela aparece para
+  quem não é admin. O ponto de entrada é o cartão "Administração" em Perfil, renderizado só
+  quando `profile.permission_level === 'admin'` (a bottom nav não muda).
+- **Como o admin acha o alvo** (a base pode ter milhares de usuários, então a tela não abre
+  numa lista de todos): a entrada é a **fila de denunciados** — usuários com denúncia
+  `pending`, do mais recentemente denunciado para o mais antigo, só contas ativas. Dali o admin
+  vai para a **busca** ou para os filtros.
+  - **Busca** (campo com debounce de 350 ms): **trecho do username** (mínimo 3 caracteres, sem
+    diferenciar maiúscula; `%` e `_` digitados valem como literais) ou **e-mail exato** (texto com
+    `@`, correspondência completa, nunca parcial, para a busca não virar enumeração de contas).
+    Menos de 3 caracteres não consulta e mostra uma dica. A busca **substitui a fila** (o chip
+    "Só com denúncias pendentes" fica desligado), senão um alvo sem denúncia "sumiria".
+  - **Filtros**: abas `Ativos | Banidos | Todos` e o chip "Só com denúncias pendentes". Sem escolha
+    manual, "Ativos" vale só para a fila (denúncias de quem já foi banido não entulham a fila);
+    busca e navegação livre procuram em todos, senão um banido não seria achado para desbanir. A
+    escolha manual da aba vale em qualquer modo.
+  - **`username` não é único** (só há `CHECK` de tamanho): por isso cada linha e o modal de banir
+    mostram também o **id curto** (8 primeiros caracteres do uuid), função, rank, agente e data de
+    cadastro, e o e-mail só aparece na busca por e-mail. Assim dois "joão" não se confundem na hora
+    de banir. Tornar o username único ficou fora de escopo.
+- **Lista** paginada por cursor `(sort_at, id)` (20 por página, "Carregar mais"; a consulta pede 21
+  para saber se há próxima página), via `fn_admin_list_users`. Cada linha: username, id curto,
+  status (Ativo/Banido), badge "Admin", dados de identificação e o botão de denúncias.
+- **Denúncias**: a linha mostra "N denúncias pendentes" (ou "Ver denúncias"), que expande um painel
+  carregado sob demanda por `fn_admin_get_user_reports` com categoria, texto, data, status e quem
+  denunciou. O texto é conteúdo de usuário e só é renderizado como texto.
+- **Ações por linha**: Banir (com modal de confirmação que repete a identidade) e Desbanir, só por
+  `fn_admin_ban_user` / `fn_admin_unban_user`. Linhas de admin não oferecem ação (a RPC também
+  recusa banir admin).
+- **Banir revisa as denúncias**: `fn_admin_ban_user` marca como `reviewed`, na mesma transação, as
+  denúncias `pending` em que o alvo é o **denunciado** (as que ele fez contra outros e as contra
+  outros usuários não mudam). Assim o banido sai da fila e, se for desbanido depois, as denúncias
+  antigas (já decididas) não voltam a aparecer; denúncia **nova** contra ele entra na fila normalmente.
+  O modal de banir avisa quantas serão revisadas, e o painel de denúncias da linha passa a mostrá-las
+  como "Revisada". Desbanir não altera denúncias. Não há `reviewed_by`: o `banned_by` do perfil é a
+  trilha de quem decidiu. Marcar denúncias como revisadas **sem** banir (ignorar uma denúncia)
+  continua manual (`update reports set status = 'reviewed'`), e um banimento feito à mão no SQL Editor
+  também não revisa nada.
+- **Fora do escopo**: chat do admin com usuários, revisão de denúncias e promoção a admin
+  continuam manuais no Supabase. Usuário banido que queira contestar procura o suporte fora
+  do BoraDuo.
+
 ## 7. Nota técnica de implementação — Realtime de matches
 
 O Supabase Realtime (`postgres_changes`) **não suporta filtro `OR` entre duas
@@ -486,6 +542,25 @@ mútuo e `is_available` + presença real antes de gravar) vale para `quick_start
 para a criação de `blocks` a partir de uma denúncia. O Claude Code deve implementar
 todas as escritas sensíveis (match, bloqueio, banimento) como funções RPC — nunca
 como insert/update direto exposto ao client.
+
+**Banimento pela UI** (`fn_admin_ban_user`, `fn_admin_unban_user`, `fn_admin_list_users`,
+`fn_admin_get_user_reports`): mesmo
+padrão das demais RPCs — `SECURITY DEFINER`, `search_path` fixo, `auth.uid()` não nulo
+(`not authenticated`), conta ativa (`inactive account`, para um admin banido não conseguir se
+desbanir), `permission_level = 'admin'` (`not authorized`) e alvo existente (`invalid target`).
+Banir admin é recusado (`cannot ban another admin`). São idempotentes: banir quem já está
+banido não sobrescreve `banned_by`/`banned_at`; desbanir quem está ativo não faz nada. Banir
+também marca como `reviewed` as denúncias `pending` contra o alvo (mesma transação; ver 6.8).
+`EXECUTE` é revogado de `public`, `anon` **e** `authenticated` e concedido só a
+`authenticated` (os privilégios padrão do Supabase dão EXECUTE direto a `anon`/`authenticated`,
+então `revoke ... from public` sozinho deixaria `anon` chamando).
+
+A listagem (`fn_admin_list_users`) e as denúncias (`fn_admin_get_user_reports`) seguem as mesmas
+guardas. A busca usa índice trigram (`pg_trgm`, no schema `extensions`) em `lower(username)`; o
+`LIKE` recebe o texto com `\`, `%` e `_` escapados, e o e-mail é comparado por igualdade
+(nunca `LIKE`). O e-mail só sai na busca por e-mail. Índices de apoio: `profiles (created_at desc,
+id desc)`, `reports (reported_id, created_at desc) where status = 'pending'` (fila) e
+`reports (reported_id, created_at desc)` (denúncias de um usuário).
 
 ### 8.3 Realtime e RLS
 O Supabase Realtime só respeita RLS em `postgres_changes` se a replicação estiver
@@ -577,8 +652,10 @@ aqui como risco aceito conscientemente, não como omissão.
 
 - **Moderação dedicada**: nível `moderator` em `permission_level`, chat de moderação
   separado, tela de gestão/promoção de moderador — tudo fora do MVP (prazo de 2-3
-  dias). No MVP, a única ferramenta de moderação é o admin agindo direto no Supabase
-  (`reports.status`, `blocks`, `profiles.status`/`banned_by`/`banned_at`).
+  dias). Banir e desbanir tem tela própria (seção 6.8, adicionada depois do lançamento);
+  o resto da moderação (`reports.status`, `blocks`, promoção a admin) continua o admin
+  agindo direto no Supabase. Chat entre admin e usuário e revisão de denúncias pela UI
+  seguem fora de escopo.
 - Lista exata de categorias fixas em `reports.category` — ajustar na implementação
   se necessário.
 - Histórico de banimentos múltiplos: `banned_by`/`banned_at` guardam só a última
@@ -637,11 +714,11 @@ Módulo: Denúncia e Bloqueio
 33. O sistema deve permitir que o próprio usuário reverta um bloqueio voluntário
 34. O sistema deve restringir a reversão de bloqueio originado de denúncia a usuários com permission_level=admin
 
-Módulo: Moderação e Banimento (admin, sem painel dedicado no MVP)
-35. O sistema deve permitir que um admin altere profiles.status para banned, registrando banned_by e banned_at
+Módulo: Moderação e Banimento (admin; banir/desbanir pela tela /app/admin/users, o resto direto no Supabase)
+35. O sistema deve permitir que um admin bana um usuário comum pela UI (fn_admin_ban_user), alterando profiles.status para banned, registrando banned_by e banned_at e marcando como revisadas as denúncias pendentes contra ele
 36. O sistema deve bloquear, para contas banidas: descoberta, leitura/escrita de mensagens (inclusive histórico antigo), presença Realtime, envio de denúncias e bloqueios
 37. O sistema deve exibir uma tela de bloqueio total substituindo a navegação para o usuário banido, informando seu status
-38. O sistema deve permitir que um admin reverta o banimento (status volta a active)
+38. O sistema deve permitir que um admin reverta o banimento pela UI (fn_admin_unban_user: status volta a active, banned_by e banned_at são limpos)
 39. O sistema deve permitir que um admin revise a fila de denúncias pendentes diretamente no Supabase
 
 Módulo: Notificações
