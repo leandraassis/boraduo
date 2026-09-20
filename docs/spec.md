@@ -42,7 +42,7 @@ Estende `auth.users` (relação 1:1 por `id`).
 | Campo | Tipo | Notas |
 |---|---|---|
 | `id` | uuid (PK, FK → auth.users) | |
-| `username` | text | |
+| `username` | text | Riot ID completo (`Nome#TAG`). Único (case-insensitive, `CHECK` de formato `^[^\s#]{3,16}#[A-Za-z0-9]{3,5}$`, trim server-side). Usado pelo admin para localizar jogadores em ban/desban e denúncias — a moderação sempre age por `id`, nunca pela string do username |
 | `avatar_url` | text, nullable | Avatar opcional, não obrigatório |
 | `bio` | varchar(50), nullable | Limite de ~50 caracteres |
 | `role` | enum | Função no jogo: `duelist \| sentinel \| controller \| initiator`. Não confundir com `permission_level` |
@@ -420,19 +420,20 @@ Tela interna, mínima, só para `permission_level = admin`:
   numa lista de todos): a entrada é a **fila de denunciados** — usuários com denúncia
   `pending`, do mais recentemente denunciado para o mais antigo, só contas ativas. Dali o admin
   vai para a **busca** ou para os filtros.
-  - **Busca** (campo com debounce de 350 ms): **trecho do username** (mínimo 3 caracteres, sem
+  - **Busca** (campo com debounce de 350 ms): **trecho do username/Riot ID** (mínimo 3 caracteres, sem
     diferenciar maiúscula; `%` e `_` digitados valem como literais) ou **e-mail exato** (texto com
     `@`, correspondência completa, nunca parcial, para a busca não virar enumeração de contas).
     Menos de 3 caracteres não consulta e mostra uma dica. A busca **substitui a fila** (o chip
-    "Só com denúncias pendentes" fica desligado), senão um alvo sem denúncia "sumiria".
+    "Só com denúncias pendentes" fica desligado), senão um alvo sem denúncia "sumiria". Como o
+    username agora é único, uma busca pelo Riot ID completo aponta para no máximo uma conta.
   - **Filtros**: abas `Ativos | Banidos | Todos` e o chip "Só com denúncias pendentes". Sem escolha
     manual, "Ativos" vale só para a fila (denúncias de quem já foi banido não entulham a fila);
     busca e navegação livre procuram em todos, senão um banido não seria achado para desbanir. A
     escolha manual da aba vale em qualquer modo.
-  - **`username` não é único** (só há `CHECK` de tamanho): por isso cada linha e o modal de banir
-    mostram também o **id curto** (8 primeiros caracteres do uuid), função, rank, agente e data de
-    cadastro, e o e-mail só aparece na busca por e-mail. Assim dois "joão" não se confundem na hora
-    de banir. Tornar o username único ficou fora de escopo.
+  - **`username` é único** (case-insensitive) desde a mudança para Riot ID completo, mas cada linha e
+    o modal de banir continuam mostrando também o **id curto** (8 primeiros caracteres do uuid),
+    função, rank, agente e data de cadastro — referência estável e barata para suporte/auditoria,
+    independente do username.
 - **Lista** paginada por cursor `(sort_at, id)` (20 por página, "Carregar mais"; a consulta pede 21
   para saber se há próxima página), via `fn_admin_list_users`. Cada linha: username, id curto,
   status (Ativo/Banido), badge "Admin", dados de identificação e o botão de denúncias.
@@ -670,7 +671,7 @@ aqui como risco aceito conscientemente, não como omissão.
 ```
 Módulo: Autenticação e Onboarding
 1. O sistema deve permitir cadastro com email e senha (Supabase Auth)
-2. O sistema deve coletar username, avatar (opcional), role, main agent (escolhido numa lista de agentes, obrigatório), rank e bio (opcional, até 50 caracteres) em sequência, com etapas puláveis onde indicado
+2. O sistema deve coletar username (Riot ID completo, formato `Nome#TAG`, único no banco), avatar (opcional), role, main agent (escolhido numa lista de agentes, obrigatório), rank e bio (opcional, até 50 caracteres) em sequência, com etapas puláveis onde indicado
 3. O sistema deve validar campos inline durante o onboarding, não só no submit
 4. O sistema deve exibir indicador de progresso durante o onboarding
 

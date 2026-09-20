@@ -13,7 +13,7 @@ import { ONBOARDING_STEPS } from '../components/onboarding/steps'
 import { useProfile } from '../hooks/useProfile'
 import { useSession } from '../hooks/useSession'
 import { uploadAvatar, type StagedAvatar } from '../lib/avatar'
-import { createProfileErrorMessage } from '../lib/errors'
+import { createProfileErrorMessage, isUsernameTakenError } from '../lib/errors'
 import type { RankType, RoleType } from '../lib/gameData'
 import { supabase } from '../lib/supabase'
 
@@ -46,6 +46,7 @@ export function Onboarding() {
   const [data, setData] = useState<OnboardingData>(INITIAL_DATA)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [usernameConflict, setUsernameConflict] = useState<string | null>(null)
 
   if (session && step === 1) {
     setStep(2)
@@ -89,10 +90,19 @@ export function Onboarding() {
 
     setSubmitting(false)
 
-    // 23505: o perfil já existe (envio duplicado); segue para o app em vez de acusar erro.
-    if (error && error.code !== '23505') {
-      setSubmitError(createProfileErrorMessage(error))
-      return
+    if (error) {
+      // Riot ID já usado por outra conta: o insert falhou de verdade (diferente do caso abaixo).
+      // Volta pra etapa 2 com o erro visível ali, mantendo agente/rank/bio já preenchidos.
+      if (isUsernameTakenError(error)) {
+        setStep(2)
+        setUsernameConflict('Esse Riot ID já está cadastrado. Escolha outro.')
+        return
+      }
+      // 23505 na PK (id): reenvio duplicado do mesmo perfil (ex.: duplo clique) — já foi criado.
+      if (error.code !== '23505') {
+        setSubmitError(createProfileErrorMessage(error))
+        return
+      }
     }
 
     navigate('/app', { replace: true })
@@ -122,9 +132,13 @@ export function Onboarding() {
             <StepIdentity
               username={data.username}
               avatar={data.avatar}
-              onUsernameChange={(username) => setData((d) => ({ ...d, username }))}
+              onUsernameChange={(username) => {
+                setData((d) => ({ ...d, username }))
+                setUsernameConflict(null)
+              }}
               onAvatarChange={(avatar) => setData((d) => ({ ...d, avatar }))}
               onNext={() => setStep(3)}
+              serverError={usernameConflict}
             />
           )}
 

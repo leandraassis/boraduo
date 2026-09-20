@@ -19,9 +19,9 @@ export const ONBOARDING_STEPS: OnboardingStepConfig[] = [
   },
   {
     name: 'Identidade do agente',
-    trackerHint: 'Username e avatar',
+    trackerHint: 'Riot ID e avatar',
     title: 'Quem é você in-game?',
-    subtitle: 'Escolha seu username e personalize seu avatar para encontrar os duos mais compatíveis.',
+    subtitle: 'Informe seu Riot ID e personalize seu avatar para encontrar os duos mais compatíveis.',
     hero: { before: 'Mostre ', highlight: 'quem você é', after: ' antes mesmo do primeiro contato.' },
     heroText: 'É assim que os outros jogadores vão te ver antes de chamar você para um duo.',
   },

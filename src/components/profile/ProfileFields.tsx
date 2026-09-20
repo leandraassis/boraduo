@@ -2,7 +2,7 @@ import { useRef, type ChangeEvent } from 'react'
 import type { Agent } from '../../lib/agents'
 import { AVATAR_ACCEPT } from '../../lib/avatar'
 import { SCHEDULE_WINDOWS, type RankType, type RoleType, type ScheduleWindow } from '../../lib/gameData'
-import { BIO_MAX_LENGTH, USERNAME_MAX_LENGTH } from '../../lib/profileLimits'
+import { BIO_MAX_LENGTH, USERNAME_FORMAT_HINT, USERNAME_MAX_LENGTH } from '../../lib/profileLimits'
 import { AgentSelect } from '../AgentSelect'
 import { FormSection as Section } from '../FormSection'
 import { focusRing, inputClass, optionClass, smallLabelClass } from '../formStyles'
@@ -115,7 +115,7 @@ export function ProfileFields({
           )}
 
           <label htmlFor="profile-username" className={`mb-1.5 block ${smallLabelClass}`}>
-            Username
+            Riot ID
           </label>
           <input
             id="profile-username"
@@ -125,13 +125,17 @@ export function ProfileFields({
             onChange={(e) => onChange({ username: e.target.value })}
             onBlur={() => onBlurField('username')}
             aria-invalid={errors.username ? true : undefined}
-            aria-describedby={errors.username ? 'profile-username-error' : undefined}
+            aria-describedby={errors.username ? 'profile-username-error' : 'profile-username-hint'}
             className={inputClass}
-            placeholder="Seu nome no jogo"
+            placeholder="Nome#TAG"
           />
-          {errors.username && (
+          {errors.username ? (
             <p id="profile-username-error" role="alert" className="mt-1.5 text-xs text-danger">
               {errors.username}
+            </p>
+          ) : (
+            <p id="profile-username-hint" className="mt-1.5 text-xs text-ink-muted">
+              {USERNAME_FORMAT_HINT}
             </p>
           )}
         </Section>

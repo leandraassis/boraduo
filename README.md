@@ -57,11 +57,11 @@ Como achar quem banir:
 
 - **Fila de denúncias (tela inicial):** só usuários ativos com denúncia pendente, do mais recentemente
   denunciado para o mais antigo. "N denúncias pendentes" abre categoria, texto, data e quem denunciou.
-- **Busca:** por **trecho do username** (mínimo 3 caracteres) ou por **e-mail exato**. A busca substitui a fila e
-  procura em todos, banidos inclusive. Abas `Ativos | Banidos | Todos` e o chip "Só com denúncias pendentes"
-  refinam a lista.
-- **Homônimos:** o `username` não é único. Cada linha e a confirmação de banimento mostram o **id curto**
-  (`#8d4f3adb`), função, rank, agente e data de cadastro para não banir a pessoa errada.
+- **Busca:** por **trecho do username** (Riot ID completo, único no banco; mínimo 3 caracteres) ou por
+  **e-mail exato**. A busca substitui a fila e procura em todos, banidos inclusive. Abas `Ativos | Banidos | Todos`
+  e o chip "Só com denúncias pendentes" refinam a lista.
+- Cada linha e a confirmação de banimento também mostram o **id curto** (`#8d4f3adb`), função, rank, agente e
+  data de cadastro — referência estável, independente do username, útil em suporte/auditoria.
 
 Detalhes técnicos:
 

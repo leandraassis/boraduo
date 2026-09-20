@@ -1,6 +1,6 @@
 import { useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { AVATAR_ACCEPT, validateAvatarFile, type StagedAvatar } from '../../lib/avatar'
-import { USERNAME_MAX_LENGTH, USERNAME_MIN_LENGTH } from '../../lib/profileLimits'
+import { USERNAME_FORMAT_HINT, USERNAME_FORMAT_REGEX, USERNAME_MAX_LENGTH } from '../../lib/profileLimits'
 import { TextField } from '../auth/TextField'
 import { FormSection } from '../FormSection'
 import { focusRing, primaryButtonClass } from '../formStyles'
@@ -12,9 +12,19 @@ interface StepIdentityProps {
   onUsernameChange: (value: string) => void
   onAvatarChange: (avatar: StagedAvatar | null) => void
   onNext: () => void
+  // Erro vindo do submit final (ex: Riot ID já cadastrado por outra conta) — some assim que o
+  // jogador mexe no campo de novo, pra não ficar uma mensagem velha depois de já ter corrigido.
+  serverError?: string | null
 }
 
-export function StepIdentity({ username, avatar, onUsernameChange, onAvatarChange, onNext }: StepIdentityProps) {
+export function StepIdentity({
+  username,
+  avatar,
+  onUsernameChange,
+  onAvatarChange,
+  onNext,
+  serverError = null,
+}: StepIdentityProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [touched, setTouched] = useState(false)
   const [avatarError, setAvatarError] = useState<string | null>(null)
@@ -22,10 +32,13 @@ export function StepIdentity({ username, avatar, onUsernameChange, onAvatarChang
   const trimmed = username.trim()
   const usernameError =
     trimmed.length === 0
-      ? 'Username obrigatório'
-      : trimmed.length < USERNAME_MIN_LENGTH
-        ? `Mínimo de ${USERNAME_MIN_LENGTH} caracteres`
+      ? 'Riot ID obrigatório'
+      : !USERNAME_FORMAT_REGEX.test(trimmed)
+        ? USERNAME_FORMAT_HINT
         : null
+  // O erro do servidor tem prioridade e aparece mesmo sem o campo já ter sido "tocado" nesta
+  // montagem (ela remonta ao voltar do submit, então `touched` sempre começa false de novo).
+  const displayedError = serverError ?? (touched ? usernameError : null)
 
   async function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -51,7 +64,7 @@ export function StepIdentity({ username, avatar, onUsernameChange, onAvatarChang
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setTouched(true)
-    if (usernameError) return
+    if (usernameError || serverError) return
     onNext()
   }
 
@@ -121,23 +134,21 @@ export function StepIdentity({ username, avatar, onUsernameChange, onAvatarChang
         </div>
       </FormSection>
 
-      <FormSection title="Username">
+      <FormSection title="Riot ID">
         <TextField
           id="username"
-          label="Username"
+          label="Riot ID"
           hideLabel
           value={username}
           onChange={onUsernameChange}
           onBlur={() => setTouched(true)}
           maxLength={USERNAME_MAX_LENGTH}
-          placeholder="Seu nome no jogo"
+          placeholder="Nome#TAG"
           autoComplete="nickname"
           icon={<UserIcon className="h-5 w-5" />}
-          error={touched ? usernameError : null}
+          error={displayedError}
         />
-        <p className="mt-2 text-xs text-ink-muted">
-          Entre {USERNAME_MIN_LENGTH} e {USERNAME_MAX_LENGTH} caracteres. É assim que os outros vão te chamar.
-        </p>
+        <p className="mt-2 text-xs text-ink-muted">{USERNAME_FORMAT_HINT} É assim que os outros vão te encontrar.</p>
       </FormSection>
 
       <button type="submit" className={primaryButtonClass}>

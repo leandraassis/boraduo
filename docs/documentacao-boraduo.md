@@ -35,9 +35,9 @@ Tem todas as permissões do usuário comum, mais:
 
 Contas admin são criadas diretamente no banco (não há fluxo de convite/promoção no
 MVP). Banir e desbanir contas é feito por uma tela interna (`/app/admin/users`), visível só
-para admin, que parte da fila de denunciados e permite buscar por trecho do username ou por
-e-mail exato (o username não é único, então a tela mostra id curto e outros dados para
-distinguir homônimos). Banir já marca como revisadas as denúncias pendentes contra o banido.
+para admin, que parte da fila de denunciados e permite buscar por trecho do username (Riot ID
+completo, único no banco) ou por e-mail exato (a tela também mostra id curto e outros dados,
+como referência estável independente do username). Banir já marca como revisadas as denúncias pendentes contra o banido.
 Ignorar uma denúncia sem banir (marcar como revisada), reversão de bloqueio por denúncia e
 promoção a admin continuam manuais no Supabase (editor de tabelas ou SQL).
 

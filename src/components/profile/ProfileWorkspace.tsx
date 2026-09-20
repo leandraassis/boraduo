@@ -2,7 +2,9 @@ import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import type { Agent } from '../../lib/agents'
 import { deleteAvatar, uploadAvatar, validateAvatarFile, type StagedAvatar } from '../../lib/avatar'
+import { saveProfileErrorMessage } from '../../lib/errors'
 import { parseSchedule, serializeSchedule, type RoleType } from '../../lib/gameData'
+import { USERNAME_FORMAT_HINT, USERNAME_FORMAT_REGEX } from '../../lib/profileLimits'
 import { supabase } from '../../lib/supabase'
 import type { Tables } from '../../types/database'
 import { ProfileCard } from '../ProfileCard'
@@ -26,8 +28,8 @@ function toDraft(profile: Tables<'profiles'>): ProfileDraft {
 function validate(draft: ProfileDraft): ProfileFieldErrors {
   const errors: ProfileFieldErrors = {}
   const username = draft.username.trim()
-  if (!username) errors.username = 'Username obrigatório'
-  else if (username.length < 3) errors.username = 'Mínimo de 3 caracteres'
+  if (!username) errors.username = 'Riot ID obrigatório'
+  else if (!USERNAME_FORMAT_REGEX.test(username)) errors.username = USERNAME_FORMAT_HINT
   if (!draft.mainAgentId) errors.mainAgent = 'Agente principal obrigatório'
   return errors
 }
@@ -156,8 +158,8 @@ export function ProfileWorkspace({ profile, onProfileChange }: ProfileWorkspaceP
       setTouched({})
       onProfileChange(data)
       setStatus({ kind: 'success', message: 'Perfil atualizado.' })
-    } catch {
-      setStatus({ kind: 'error', message: 'Não foi possível salvar. Tente novamente.' })
+    } catch (error) {
+      setStatus({ kind: 'error', message: saveProfileErrorMessage(error as { code?: string; message?: string }) })
     } finally {
       setSaving(false)
     }

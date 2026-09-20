@@ -43,8 +43,24 @@ export function signUpErrorMessage(error: SupabaseErrorLike): string {
   return 'Não foi possível criar sua conta agora. Tente de novo.'
 }
 
+// No insert do onboarding, 23505 é ambíguo: tanto reenvio duplicado do mesmo perfil (colide com a PK
+// `id`, já foi criado, seguro tratar como sucesso) quanto Riot ID já usado por outra conta (colide com
+// `profiles_username_unique_ci_idx`, o insert falhou de verdade). Só o texto da constraint distingue.
+export function isUsernameTakenError(error: SupabaseErrorLike): boolean {
+  return error.code === '23505' && /profiles_username_unique_ci_idx/.test(error.message ?? '')
+}
+
 export function createProfileErrorMessage(error: SupabaseErrorLike): string {
   if (isNetworkError(error)) return NETWORK_MESSAGE
-  if (error.code === '23514') return 'Revise os campos: o username tem de 3 a 30 caracteres.'
+  if (error.code === '23505') return 'Esse Riot ID já está cadastrado. Escolha outro.'
+  if (error.code === '23514') return 'Revise o Riot ID: use o formato Nome#TAG (ex: Fenix#1234).'
   return 'Não foi possível criar seu perfil. Tente de novo.'
+}
+
+// Mesma checagem, para quando o erro acontece na edição do perfil já existente (não na criação).
+export function saveProfileErrorMessage(error: SupabaseErrorLike): string {
+  if (isNetworkError(error)) return NETWORK_MESSAGE
+  if (error.code === '23505') return 'Esse Riot ID já está cadastrado. Escolha outro.'
+  if (error.code === '23514') return 'Revise o Riot ID: use o formato Nome#TAG (ex: Fenix#1234).'
+  return 'Não foi possível salvar. Tente novamente.'
 }
