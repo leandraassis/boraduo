@@ -11,9 +11,10 @@ interface AdminUserRowProps {
   disabled: boolean
   onBan: (user: AdminUser) => void
   onUnban: (user: AdminUser) => void
+  onReportReviewed: () => void
 }
 
-export function AdminUserRow({ user, pending, disabled, onBan, onUnban }: AdminUserRowProps) {
+export function AdminUserRow({ user, pending, disabled, onBan, onUnban, onReportReviewed }: AdminUserRowProps) {
   const [reportsOpen, setReportsOpen] = useState(false)
   const panelId = `reports-${user.id}`
   const actionClass = `shrink-0 cursor-pointer rounded-xl border px-3.5 py-2 text-sm font-medium whitespace-nowrap transition disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`
@@ -73,7 +74,9 @@ export function AdminUserRow({ user, pending, disabled, onBan, onUnban }: AdminU
       </button>
 
       {/* A chave recarrega o painel quando o ban muda o status das denúncias (pendentes viram revisadas). */}
-      {reportsOpen && <UserReportsPanel key={user.banned ? 'banned' : 'active'} id={panelId} userId={user.id} />}
+      {reportsOpen && (
+        <UserReportsPanel key={user.banned ? 'banned' : 'active'} id={panelId} userId={user.id} onReportReviewed={onReportReviewed} />
+      )}
     </li>
   )
 }

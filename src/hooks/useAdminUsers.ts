@@ -79,6 +79,14 @@ export function useAdminUsers(filters: AdminFilters) {
     }))
   }, [])
 
+  // Descartar uma denúncia individual (sem banir) reduz a contagem em 1, nunca abaixo de 0.
+  const decrementPendingReports = useCallback((userId: string) => {
+    setState((s) => ({
+      ...s,
+      users: s.users.map((u) => (u.id === userId ? { ...u, pendingReports: Math.max(0, u.pendingReports - 1) } : u)),
+    }))
+  }, [])
+
   return {
     status: state.status,
     users: state.users,
@@ -88,5 +96,6 @@ export function useAdminUsers(filters: AdminFilters) {
     retry,
     loadMore,
     setBanned,
+    decrementPendingReports,
   }
 }

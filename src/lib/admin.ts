@@ -123,3 +123,10 @@ export async function unbanUser(targetId: string): Promise<void> {
   const { error } = await supabase.rpc('fn_admin_unban_user', { p_target_id: targetId })
   if (error) throw error
 }
+
+// Marca uma denúncia como revisada sem banir o denunciado. O bloqueio criado pela denúncia continua
+// intacto — são decisões separadas.
+export async function reviewReport(reportId: string): Promise<void> {
+  const { error } = await supabase.rpc('fn_admin_review_report', { p_report_id: reportId })
+  if (error) throw error
+}

@@ -74,7 +74,8 @@ function AdminUsersView() {
   const queueMode = onlyReported && query === ''
   const status = statusChoice ?? (queueMode ? 'active' : 'all')
   const filters = useMemo<AdminFilters>(() => ({ query, status, onlyReported: queueMode }), [query, status, queueMode])
-  const { status: loadStatus, users, next, loadingMore, loadMoreFailed, retry, loadMore, setBanned } = useAdminUsers(filters)
+  const { status: loadStatus, users, next, loadingMore, loadMoreFailed, retry, loadMore, setBanned, decrementPendingReports } =
+    useAdminUsers(filters)
 
   const [banTarget, setBanTarget] = useState<AdminUser | null>(null)
   const [pendingId, setPendingId] = useState<string | null>(null)
@@ -181,6 +182,7 @@ function AdminUsersView() {
                 disabled={pendingId !== null}
                 onBan={setBanTarget}
                 onUnban={handleUnban}
+                onReportReviewed={() => decrementPendingReports(user.id)}
               />
             ))}
           </ul>

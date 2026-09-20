@@ -311,6 +311,8 @@ export type Database = {
           id: string
           reported_id: string
           reporter_id: string
+          reviewed_at: string | null
+          reviewed_by: string | null
           status: Database["public"]["Enums"]["report_status"]
         }
         Insert: {
@@ -320,6 +322,8 @@ export type Database = {
           id?: string
           reported_id: string
           reporter_id: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           status?: Database["public"]["Enums"]["report_status"]
         }
         Update: {
@@ -329,6 +333,8 @@ export type Database = {
           id?: string
           reported_id?: string
           reporter_id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           status?: Database["public"]["Enums"]["report_status"]
         }
         Relationships: [
@@ -342,6 +348,13 @@ export type Database = {
           {
             foreignKeyName: "reports_reporter_id_fkey"
             columns: ["reporter_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reports_reviewed_by_fkey"
+            columns: ["reviewed_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -429,6 +442,7 @@ export type Database = {
           username: string
         }[]
       }
+      fn_admin_review_report: { Args: { p_report_id: string }; Returns: undefined }
       fn_admin_unban_user: { Args: { p_target_id: string }; Returns: undefined }
       fn_block_user: { Args: { p_target_id: string }; Returns: undefined }
       fn_get_blocked_users: {
