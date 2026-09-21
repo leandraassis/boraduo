@@ -9,10 +9,11 @@ Dois caminhos de descoberta coexistem:
 2. **Disponíveis agora**: lista filtrada de jogadores disponíveis agora, sem depender
    de swipe prévio. Contato aqui é via **quick match**, não exige reciprocidade.
 
-Escopo do MVP: apenas Valorant, rank autodeclarado, sem curadoria automática de
-conteúdo, sem ferramentas de moderação além de denúncia/bloqueio simples e banimento
-administrativo (tela mínima `/app/admin/users` para banir/desbanir — ver seção 6.8; o
-restante da moderação continua manual no Supabase).
+Escopo do MVP: apenas Valorant, rank autodeclarado (o Riot ID também é autodeclarado, sem
+verificação), sem curadoria automática de conteúdo. A moderação é denúncia/bloqueio pelos
+usuários mais uma tela administrativa mínima (`/app/admin/users`: fila de denunciados, conversa da
+denúncia, marcar como revisada e banir/desbanir — ver seção 6.8). Continuam manuais no Supabase só
+a promoção a admin e a remoção de bloqueio de denúncia (seção 11).
 
 Web app, mobile-first. Sem integrações externas; notificações apenas in-app,
 persistidas até o usuário abrir o app (sem push nativo, sem e-mail).
@@ -43,10 +44,10 @@ Estende `auth.users` (relação 1:1 por `id`).
 |---|---|---|
 | `id` | uuid (PK, FK → auth.users) | |
 | `username` | text | Riot ID completo (`Nome#TAG`). Único (case-insensitive, `CHECK` de formato `^[^\s#]{3,16}#[A-Za-z0-9]{3,5}$`, trim server-side). Usado pelo admin para localizar jogadores em ban/desban e denúncias — a moderação sempre age por `id`, nunca pela string do username |
-| `avatar_url` | text, nullable | Avatar opcional, não obrigatório |
+| `avatar_url` | text, nullable | Avatar opcional. `CHECK` de formato: só aceita a URL pública do bucket `avatars` **deste projeto**, no caminho `<id do perfil>/avatar` (com `?v=` opcional de cache). Isso impede URL externa (pixel de rastreio, contorno dos limites do bucket) e apontar para a foto de outro usuário. **O project ref está fixo na constraint**: se o projeto Supabase mudar, ela precisa ser recriada (ver 8.11) |
 | `bio` | varchar(50), nullable | Limite de ~50 caracteres |
 | `role` | enum | Função no jogo: `duelist \| sentinel \| controller \| initiator`. Não confundir com `permission_level` |
-| `main_agent_id` | text, NOT NULL, FK → agents(id) `ON DELETE RESTRICT` | Personagem mais jogado (um só por perfil). Ver 3.10. Substituiu o texto livre `main_agent`, removido |
+| `main_agent_id` | text, NOT NULL, FK → agents(id) `ON DELETE RESTRICT` | Personagem mais jogado (um só por perfil). Ver 3.9. Substituiu o texto livre `main_agent`, removido |
 | `rank` | enum | Tier único, sem subdivisão: `iron \| bronze \| silver \| gold \| platinum \| diamond \| ascendant \| immortal \| radiant`. Autodeclarado |
 | `availability_schedule` | text, nullable | Informativo. Não filtra "Disponíveis agora". Pode opcionalmente ser usado como filtro no swipe |
 | `is_available` | boolean, default false | Flag de intenção "agora", independente da conexão real |
@@ -127,13 +128,18 @@ Chat normal, vinculado a um match.
 | `id` | uuid (PK) | |
 | `match_id` | uuid, FK → matches | |
 | `sender_id` | uuid, FK → profiles | |
-| `content` | text | |
-| `created_at` | timestamptz | |
+| `content` | text | `CHECK` ≤ 2000 caracteres |
+| `created_at` | timestamptz | Sempre o `now()` do servidor: o trigger de limite de taxa sobrescreve o que o client enviar (uma data forjada no passado burlaria o limite; no futuro fixaria a conversa no topo e a deixaria "não lida" para sempre) |
 
 Acesso: leitura permitida se existe match correspondente (histórico preservado mesmo
 com bloqueio ativo ou banimento). Escrita bloqueada se há bloqueio ativo entre o par
 ou se qualquer um dos dois usuários tem `status != active` — conversa vira somente
 leitura para ambos.
+
+Triggers: `trg_messages_rate_limit` (BEFORE INSERT) grava o `created_at` do servidor e recusa a
+31ª mensagem no mesmo minuto do mesmo usuário (`rate_limit_exceeded`, ver 8.8);
+`trg_touch_match_last_message` (AFTER INSERT) atualiza `matches.last_message_at` com `greatest(...)`,
+para o campo nunca andar para trás se duas mensagens confirmarem fora de ordem.
 
 ### 3.6 `reports`
 
@@ -145,9 +151,14 @@ leitura para ambos.
 | `category` | enum | `toxic_behavior \| cheating \| fake_profile \| harassment \| other` |
 | `details` | text, nullable | Texto livre complementar |
 | `status` | enum, default `pending` | `pending \| reviewed` |
+| `reviewed_by` | uuid, nullable, FK → profiles | Admin que revisou (auditoria). Preenchido ao marcar como revisada ou ao banir o denunciado |
+| `reviewed_at` | timestamptz, nullable | Quando foi revisada |
 | `created_at` | timestamptz | |
 
-Sem moderação automática — toda denúncia fica pendente até revisão manual por admin.
+Sem moderação automática — toda denúncia fica pendente até um admin revisá-la pela tela de
+administração (6.8): marcando-a como revisada ou banindo o denunciado, que revisa as pendentes dele.
+A denúncia só nasce por `fn_report_user` e é limitada a 3 por minuto por denunciante; não há
+deduplicação, então um mesmo denunciante pode registrar mais de uma contra o mesmo usuário.
 
 ### 3.7 `blocks`
 Bloqueio entre dois usuários — por denúncia (automático) ou voluntário. Uma linha por par
@@ -170,7 +181,8 @@ Constraint: `unique(user_a_id, user_b_id, blocker_id)` (`blocks_pair_blocker_key
 Efeito: os dois usuários deixam de aparecer um para o outro; conversa existente vira
 somente leitura.
 
-**Reversão**: `report_id` presente → só `permission_level = admin` remove.
+**Reversão**: `report_id` presente → só `permission_level = admin` remove (no MVP, por SQL: ver a
+seção 11; a tela de administração não remove bloqueios).
 `report_id` nulo (voluntário) → o próprio usuário que bloqueou (`blocker_id`) remove quando
 quiser; o bloqueado nunca remove. Se quem já bloqueou voluntariamente depois denuncia o mesmo
 usuário, o bloqueio dele passa a ser de denúncia (`report_id` preenchido).
@@ -196,7 +208,10 @@ no momento do evento. Único canal de notificação do MVP (sem push/e-mail).
 | `read` | boolean, default false | |
 | `created_at` | timestamptz | |
 
-### 3.10 `agents`
+O client só **lê** as próprias notificações e só pode alterar a coluna `read` (privilégio de coluna
+`update (read)` + policy); notificações nascem apenas dentro de `fn_create_match_from_swipe`.
+
+### 3.9 `agents`
 Tabela de referência dos agentes de Valorant, usada na seleção do main
 (`profiles.main_agent_id`). Somente leitura para o app.
 
@@ -215,7 +230,16 @@ Tabela de referência dos agentes de Valorant, usada na seleção do main
   migration, sem deploy do front (o app lê a tabela).
 - Fora do MVP: imagens de agentes, filtro por agente no swipe e mais de um main.
 
-### 3.9 Estado local (fora do banco)
+**Cadastrar um agente novo** (numa migration; é idempotente, então rodar de novo só atualiza). O `id`
+é um slug em minúsculas e sem espaços (`^[a-z0-9]+$`) e a função é um dos quatro valores de `role`:
+
+```sql
+insert into public.agents (id, name, role)
+values ('novoagente', 'Novo Agente', 'duelist')   -- duelist | sentinel | controller | initiator
+on conflict (id) do update set name = excluded.name, role = excluded.role;
+```
+
+### 3.10 Estado local (fora do banco)
 `seen_availability_warning`: flag do modal de aviso "Estou disponível" — persistida
 em **localStorage**, não no banco. Decisão explícita: é cosmética, não precisa
 sobreviver a troca de dispositivo nem ser auditável.
@@ -265,8 +289,10 @@ sobreviver a troca de dispositivo nem ser auditável.
    convertido em bloqueio de denúncia; um bloqueio do outro lado do par não é tocado (ver 3.7).
 3. Denunciado some das listas para o denunciante e vice-versa; chat existente vira
    somente leitura.
-4. Admin revisa a fila de `reports` (`status = pending`) e decide ação diretamente no
-   Supabase no MVP.
+4. Admin revisa a fila de denunciados pela tela `/app/admin/users` (6.8): lê a denúncia e a
+   conversa, marca como revisada (`fn_admin_review_report`) ou bane o denunciado
+   (`fn_admin_ban_user`, que revisa as pendentes dele). Remover o bloqueio criado pela denúncia
+   continua manual (seção 11).
 
 ### 4.4 Bloqueio voluntário (sem denúncia)
 1. Usuário bloqueia diretamente, sem passar por `reports`.
@@ -298,8 +324,10 @@ sobreviver a troca de dispositivo nem ser auditável.
   swipes/matches/blocks e filtros aplicados na query da aplicação.
 - **`profiles` (update da própria linha)**: usuário pode atualizar username, avatar_url,
   bio, role, main_agent_id, rank, availability_schedule, is_available — **mas não**
-  permission_level, status, banned_by, banned_at. Ver seção 8.1 sobre por que isso
-  precisa de um trigger, não só da policy.
+  permission_level, status, banned_by, banned_at (nem `created_at` nem `terms_*`). Exige conta
+  ativa. Ver seção 8.1 sobre por que isso precisa de um trigger, não só da policy.
+- **`profiles` (insert)**: só a própria linha (`id = auth.uid()`). O trigger (8.1) recusa campos
+  privilegiados e exige o aceite dos Termos vindo do cadastro (6.10).
 - **`agents` (select)**: qualquer usuário `authenticated`; `anon` não lê. Nenhuma escrita
   pelo app (sem policy de insert/update/delete e sem privilégio de escrita).
 - **`swipes` (insert)**: só o próprio usuário como `swiper_id`; ambos `status = active`.
@@ -313,7 +341,7 @@ sobreviver a troca de dispositivo nem ser auditável.
   preservado mesmo com bloqueio ativo ou banimento).
 - **`messages` (insert)**: permitido apenas com match confirmado, sem bloqueio ativo
   e ambos `status = active`.
-- **`notifications`**: usuário só lê/atualiza as próprias.
+- **`notifications`**: usuário só lê as próprias e só altera a coluna `read` (3.8).
 - **`reports` (insert)**: **sem policy de insert direto pelo client** — a denúncia nasce só por
   `fn_report_user` (SECURITY DEFINER: exige conta ativa, limita `details` a 500 caracteres e cria o
   bloqueio junto). Select restrito a admin.
@@ -338,6 +366,18 @@ sobreviver a troca de dispositivo nem ser auditável.
   A tela de administração lê por `fn_admin_list_users` (SECURITY DEFINER, exige admin ativo) e
   as denúncias de um usuário por `fn_admin_get_user_reports`. Na busca por e-mail a RPC lê
   `auth.users` e devolve o e-mail; em qualquer outra listagem o campo vem nulo.
+- **Storage (`avatars`)**: bucket público (a URL do objeto não depende de policy). Escrita
+  (insert/update/delete) e leitura via API só na própria pasta (`<user_id>/...`), para `authenticated`.
+  Limite de 5 MB e só PNG, JPEG e WebP no próprio bucket (8.6).
+- **Realtime (`realtime.messages`)**: a presença de "Disponíveis agora" usa um canal **privado**
+  (`available-now`); duas policies (`select` para ouvir, `insert` para anunciar presença) exigem conta
+  ativa via `fn_current_user_is_active()`, então conta banida e anônimo recebem `Unauthorized`. Os
+  eventos `postgres_changes` de `matches`, `messages`, `notifications` e `match_reads` respeitam as
+  policies de `select` de cada tabela (8.3).
+- **Privilégios de tabela**: `anon` não escreve em nada e só tem `SELECT` (sem policy, lê zero linhas,
+  o que evita evento de erro no Realtime); `authenticated` não tem `TRUNCATE/TRIGGER/REFERENCES` e não
+  escreve em `matches`. Toda `fn_*` tem `EXECUTE` revogado de `public`/`anon` e concedido só a
+  `authenticated` (8.2).
 
 ## 6. Navegação e telas
 
@@ -347,7 +387,9 @@ Bottom nav com 4 destinos + telas/modais secundários:
 [ Discover ]  [ Matches ]  [ Notificações ]  [ Perfil ]
 ```
 
-Telas fora da bottom nav: Onboarding (pré-login), Chat individual (a partir de
+Telas fora da bottom nav: Login (`/login`, 6.11), Onboarding (pré-login), Recuperação de senha
+(`/forgot-password` e `/reset-password`, 6.9), Termos de Uso e Política de Privacidade (`/termos` e
+`/privacidade`, públicas, 6.10), Aceite obrigatório dos Termos (6.10), Chat individual (a partir de
 Matches), Report/Block (modal), Tela de bloqueio total (usuário banido), Administração de
 usuários `/app/admin/users` (só admin, sem item na bottom nav — ver 6.8).
 
@@ -360,7 +402,7 @@ Sequência curta, uma decisão por tela, com indicador de progresso:
 
 | Passo | Tela | Campos | Nota de UX |
 |---|---|---|---|
-| 1 | Cadastro | Email, senha | Validação inline |
+| 1 | Cadastro | Email, senha, aceite dos Termos e da Política (declara ter 18 anos ou mais) | Validação inline; checklist dos requisitos da senha em tempo real; sem marcar o aceite não há cadastro (6.10). Com a confirmação de e-mail ligada, mostra "Confirme seu email" e o perfil é criado depois do login |
 | 2 | Identidade | Username, avatar (opcional) | Avatar pulável |
 | 3 | Perfil de jogo | Role, agente principal (obrigatório), rank | Rank como seletor visual de ícones, não dropdown. Agente: combobox só de texto, agrupado por função, com busca. Escolher o agente pré-preenche a role até o jogador escolhê-la à mão |
 | 4 | Bio (opcional) | Bio (até 50 char) | Contador de caracteres; pulável |
@@ -424,6 +466,11 @@ em telas largas.
 - Edição: username, avatar, bio, role, main_agent_id (seleção de agente), rank, availability_schedule.
   Perfil já criado começa com a role como escolhida: trocar o agente nunca a sobrescreve
 - Toggle "Estou disponível" também disponível aqui (redundância intencional)
+- **Usuários bloqueados**: lista dos bloqueios que o próprio usuário criou (via `fn_get_blocked_users`),
+  com "Desbloquear" nos voluntários; os originados de denúncia aparecem como "Denúncia — só a moderação
+  remove", sem ação (3.7)
+- Links para os Termos de Uso e a Política de Privacidade (nova aba)
+- Cartão "Administração" (só para admin), que leva a `/app/admin/users` (6.8)
 - Logout
 
 ### 6.6 Estados globais
@@ -477,6 +524,11 @@ Tela interna, mínima, só para `permission_level = admin`:
   denunciado via `fn_admin_get_report_conversation(report_id)` (o client nunca escolhe os dois
   usuários; o servidor recusa denúncia já revisada). Devolve as **200 mensagens mais recentes**, em
   ordem cronológica — o abuso recente é o que motiva a denúncia, então o corte descarta as mais antigas.
+- **Marcar como revisada**: cada denúncia pendente tem o botão "Marcar como revisada"
+  (`fn_admin_review_report`), sem banir. Grava `reviewed_by`/`reviewed_at`, é idempotente (revisar de novo
+  não sobrescreve quem revisou) e **não mexe no bloqueio** que a denúncia criou: são decisões separadas.
+  O contador de pendentes da linha diminui e a conversa daquela denúncia deixa de ser servida (só
+  enquanto `pending`).
 - **Ações por linha**: Banir (com modal de confirmação que repete a identidade) e Desbanir, só por
   `fn_admin_ban_user` / `fn_admin_unban_user`. Linhas de admin não oferecem ação (a RPC também
   recusa banir admin).
@@ -485,13 +537,12 @@ Tela interna, mínima, só para `permission_level = admin`:
   outros usuários não mudam). Assim o banido sai da fila e, se for desbanido depois, as denúncias
   antigas (já decididas) não voltam a aparecer; denúncia **nova** contra ele entra na fila normalmente.
   O modal de banir avisa quantas serão revisadas, e o painel de denúncias da linha passa a mostrá-las
-  como "Revisada". Desbanir não altera denúncias. Não há `reviewed_by`: o `banned_by` do perfil é a
-  trilha de quem decidiu. Marcar denúncias como revisadas **sem** banir (ignorar uma denúncia)
-  continua manual (`update reports set status = 'reviewed'`), e um banimento feito à mão no SQL Editor
-  também não revisa nada.
-- **Fora do escopo**: chat do admin com usuários, revisão de denúncias e promoção a admin
-  continuam manuais no Supabase. Usuário banido que queira contestar segue o procedimento dos
-  Termos de Uso (seção 5, `/termos#moderacao`, e-mail de contato), linkado na tela de banido.
+  como "Revisada". Desbanir não altera denúncias. A revisão grava `reviewed_by`/`reviewed_at` (além do
+  `banned_by` do perfil). Um banimento feito à mão no SQL Editor não revisa nada.
+- **Continua manual** (seção 11): promover a admin e remover o bloqueio criado por uma denúncia.
+- **Fora do escopo**: chat do admin com usuários. Usuário banido que queira contestar segue o
+  procedimento dos Termos de Uso (seção 5, `/termos#moderacao`, e-mail de contato), linkado na tela de
+  banido.
 
 ### 6.9 Recuperação de senha (`/forgot-password`, `/reset-password`)
 Duas telas públicas (sem login), sem nenhuma mudança no banco: o fluxo é todo do Supabase Auth.
@@ -513,11 +564,15 @@ Duas telas públicas (sem login), sem nenhuma mudança no banco: o fluxo é todo
   preservando o hash, e `RecoveryRedirect` faz o mesmo ao receber o evento `PASSWORD_RECOVERY`.
   Sem isso, com a URL não liberada no painel, o link cairia no Site URL e o usuário seria logado por
   `/login → /app` sem nunca definir a senha.
-- **Configuração manual no Supabase (não automatizável)**: liberar `<domínio>/reset-password` em
-  *Authentication → URL Configuration → Redirect URLs* (produção e, no desenvolvimento,
-  `http://localhost:5173/reset-password`) e configurar um **SMTP próprio**: o SMTP padrão do Supabase
-  tem limite muito baixo de e-mails por hora e serve também à confirmação de e-mail e a esta
-  recuperação. Ver README (Deploy).
+- **Configuração manual no Supabase (não automatizável)**: o `redirectTo` só é usado se o Supabase o
+  aceitar; do contrário ele o ignora e usa o Site URL. Pelo comportamento observado, uma URL cujo **host**
+  coincide com o do Site URL é aceita (porta e caminho não contam), e qualquer outra precisa estar em
+  *Authentication → URL Configuration → Redirect URLs*. Ou seja: com o Site URL igual ao domínio de
+  produção, `/reset-password` passa; **domínios diferentes** (previews da Vercel, ou `localhost` contra um
+  projeto com Site URL de produção) devem ser listados. Na dúvida, liste a URL explicitamente e mantenha só
+  domínios reais (o token de recuperação viaja na URL). Também é preciso um **SMTP próprio**: o padrão do
+  Supabase tem limite muito baixo de e-mails por hora e serve também à confirmação de e-mail e a esta
+  recuperação. Ver 8.11.
 
 ### 6.10 Termos de Uso, Política de Privacidade e aceite (`/termos`, `/privacidade`)
 - **Páginas públicas** (sem login), em PT-BR, orientadas à LGPD, linkadas no rodapé das telas de
@@ -551,6 +606,16 @@ Duas telas públicas (sem login), sem nenhuma mudança no banco: o fluxo é todo
   do Supabase); qualquer valor que comece com `[PREENCHER` é destacado na tela. **Antes do deploy**: conferir os
   dois valores, submeter o texto a **revisão jurídica** e só então `LEGAL_DRAFT = false`.
 
+### 6.11 Login (`/login`)
+Tela pública, ponto de entrada de quem já tem conta.
+- Campos e-mail e senha, com validação inline. Erros traduzidos: credenciais incorretas, e-mail ainda não
+  confirmado (quando a confirmação está ligada), limite de tentativas do Auth (429) e falta de rede.
+- Links: "Esqueci minha senha" (6.9) e "Criar conta" (onboarding). O rodapé traz os links dos Termos e da
+  Política (6.10) e o aviso de independência da Riot Games.
+- Quem já está logado e abre `/login` é levado a `/app`. Depois do login, o `AppGuard` decide o destino:
+  sem perfil → `/onboarding` (etapa 2); conta banida → `/banned`; sem o aceite da versão vigente dos Termos
+  → tela de aceite obrigatório (6.10); caso contrário, o app.
+
 ## 7. Nota técnica de implementação — Realtime de matches
 
 O Supabase Realtime (`postgres_changes`) **não suporta filtro `OR` entre duas
@@ -568,102 +633,105 @@ Pontos abaixo são específicos deste sistema (não uma lista genérica de check
 RLS por si só não faz restrição por coluna — uma policy `update using (id =
 auth.uid())` sem mais nada permitiria o próprio usuário setar `permission_level =
 'admin'`, `status = 'active'` (se banido) ou forjar `banned_by`/`banned_at` via
-chamada REST direta ao Supabase, mesmo que a UI nunca exponha esses campos. É
-necessário um **trigger `BEFORE UPDATE`** que rejeita qualquer mudança nessas quatro
-colunas a menos que quem está executando já seja admin:
+chamada REST direta ao Supabase, mesmo que a UI nunca exponha esses campos. Por isso a
+proteção mora num **trigger `BEFORE INSERT OR UPDATE`** em `profiles`
+(`trg_protect_profile_privileged_columns`, função `fn_protect_profile_privileged_columns`,
+`SECURITY DEFINER` com `search_path` fixo). Para quem escreve com um JWT de usuário, ele garante:
 
-```sql
-create or replace function fn_protect_profile_privileged_columns()
-returns trigger as $$
-begin
-  if (select permission_level from profiles where id = auth.uid()) <> 'admin' then
-    if new.permission_level is distinct from old.permission_level
-       or new.status is distinct from old.status
-       or new.banned_by is distinct from old.banned_by
-       or new.banned_at is distinct from old.banned_at then
-      raise exception 'not authorized to change privileged fields';
-    end if;
-  end if;
-  return new;
-end;
-$$ language plpgsql security definer;
+- **INSERT** (criar o próprio perfil): só aceita os valores padrão (`permission_level = 'user'`,
+  `status = 'active'`, sem `banned_by`/`banned_at`); sem isso uma chamada direta criaria a conta já
+  admin. `created_at` é sempre `now()`, e o aceite dos Termos vem do cadastro (`terms not accepted` se
+  faltar, ver 6.10).
+- **UPDATE por quem não é admin**: recusa mudar `permission_level`, `status`, `banned_by` e
+  `banned_at` (`not authorized to change privileged fields`) e mantém o `created_at` antigo. Quem é
+  admin pode alterá-los, mas nunca forja o aceite dos Termos de outra conta.
+- **Sempre**: `username` é normalizado com `btrim`; `terms_version` nunca volta a nulo e
+  `terms_accepted_at` é do servidor (6.10).
 
-create trigger trg_protect_profile_privileged_columns
-before update on profiles
-for each row execute function fn_protect_profile_privileged_columns();
-```
+**Sem JWT** (SQL Editor do Supabase, service role, migrations) `auth.uid()` é nulo e o trigger não
+restringe nada. É por isso que as operações manuais da seção 11 funcionam, e por que só quem tem acesso
+ao painel do Supabase consegue fazê-las, nunca o app.
 
-### 8.2 Criação de `matches` e `blocks` não pode ser insert cru do client
-Se a criação de match ou bloqueio fosse um simples `insert` liberado por RLS, um
-usuário malicioso poderia, via chamada direta à API REST do Supabase (contornando a
-UI): criar match com qualquer pessoa sem reciprocidade real, criar match com um
-usuário banido ou bloqueado, ou inserir um "bloqueio" fraudulento em nome de outra
-pessoa. A defesa é **não ter policy de insert nessas tabelas** e expor a operação só
-por função `SECURITY DEFINER` (RPC), que valida as regras de negócio server-side
-antes de gravar:
+### 8.2 Escritas sensíveis não podem ser insert cru do client
+Se a criação de match, bloqueio ou denúncia fosse um simples `insert` liberado por RLS, um usuário
+malicioso poderia, via chamada direta à API REST do Supabase (contornando a UI): criar match com
+qualquer pessoa sem reciprocidade real, criar match com um usuário banido ou bloqueado, inserir um
+"bloqueio" fraudulento em nome de outra pessoa ou registrar uma denúncia já como `reviewed`. A defesa é
+**não ter policy de insert** em `matches`, `blocks` e `reports` (nem de escrita em `notifications`
+além da coluna `read`) e expor cada operação só por função `SECURITY DEFINER` (RPC), que valida as
+regras de negócio no servidor antes de gravar. Todas seguem o mesmo padrão: `search_path` fixo,
+`auth.uid()` não nulo (`not authenticated`) e conta ativa (`inactive account`). O `EXECUTE` é revogado de
+`public`, `anon` **e** `authenticated` e concedido só a `authenticated` (os privilégios padrão do
+Supabase dão EXECUTE direto a `anon`/`authenticated`, então revogar só de `public` deixaria `anon`
+chamando). Toda escrita sensível é uma RPC, nunca insert/update direto exposto ao client.
 
-```sql
-create or replace function fn_create_match_from_swipe(p_swiped_id uuid)
-returns void as $$
-declare
-  v_a uuid; v_b uuid; v_reciprocal boolean;
-begin
-  if (select status from profiles where id = auth.uid()) <> 'active'
-     or (select status from profiles where id = p_swiped_id) <> 'active' then
-    raise exception 'inactive account';
-  end if;
+Regras específicas de cada uma:
+- **`fn_create_match_from_swipe`**: exige as duas contas ativas e ausência de bloqueio; registra o like;
+  se ele é recíproco, cria o match (`origin = swipe`) e as duas notificações. Toma um
+  `pg_advisory_xact_lock` sobre o par normalizado (sem ele, dois likes simultâneos não enxergam o swipe
+  um do outro e o match nunca nasce) e só notifica quando aquela chamada criou o match (4.1).
+- **`fn_create_quick_match`**: exige as duas contas ativas, o alvo com `is_available = true` e ausência de
+  bloqueio; aplica o limite de 3 por minuto e 15 por 24 h e grava `initiator_id` (4.2). **A presença
+  real não é conferida no servidor** (só filtra a lista), porque o payload de presença é do client e não
+  pode servir de autorização (8.4).
+- **`fn_report_user`**: alvo existente e diferente do chamador, `details` ≤ 500 caracteres, limite de 3
+  por minuto; cria a denúncia e o bloqueio do denunciante (3.7).
+- **`fn_block_user`**: alvo existente e diferente do chamador. **`fn_pass_swipe`**: só exige conta ativa (a
+  chave estrangeira recusa alvo inexistente).
 
-  insert into swipes(swiper_id, swiped_id, liked)
-  values (auth.uid(), p_swiped_id, true)
-  on conflict (swiper_id, swiped_id) do update set liked = true;
+**RPCs de administração** (`fn_admin_list_users`, `fn_admin_get_user_reports`,
+`fn_admin_get_report_conversation`, `fn_admin_review_report`, `fn_admin_ban_user`,
+`fn_admin_unban_user`): as mesmas guardas mais `permission_level = 'admin'` (`not authorized`) e alvo ou
+denúncia existente (`invalid target` / `invalid report`). Exigir conta ativa impede que um admin
+banido se desbane. Banir admin é recusado (`cannot ban another admin`). São idempotentes: banir quem já
+está banido não sobrescreve `banned_by`/`banned_at`, revisar de novo não sobrescreve `reviewed_by`,
+desbanir quem está ativo não faz nada. Banir também marca como `reviewed` as denúncias `pending`
+contra o alvo (mesma transação; ver 6.8). `fn_admin_get_report_conversation` só serve denúncia
+`pending` (`report not pending`) e resolve o par a partir do `report_id`, então o client nunca escolhe
+quais duas contas ler.
 
-  select exists(
-    select 1 from swipes
-    where swiper_id = p_swiped_id and swiped_id = auth.uid() and liked = true
-  ) into v_reciprocal;
+A busca do admin usa índice trigram (`pg_trgm`, no schema `extensions`) em `lower(username)`; o `LIKE`
+recebe o texto com `\`, `%` e `_` escapados, e o e-mail é comparado por igualdade (nunca `LIKE`) e só
+sai na busca por e-mail. Índices de apoio: `profiles (created_at desc, id desc)`, `reports
+(reported_id, created_at desc) where status = 'pending'` (fila) e `reports (reported_id, created_at
+desc)` (denúncias de um usuário).
 
-  if v_reciprocal then
-    v_a := least(auth.uid(), p_swiped_id);
-    v_b := greatest(auth.uid(), p_swiped_id);
-    insert into matches(user_a_id, user_b_id, origin)
-    values (v_a, v_b, 'swipe')
-    on conflict (user_a_id, user_b_id) do nothing;
-  end if;
-end;
-$$ language plpgsql security definer;
-```
+**Catálogo de funções.** As migrations não são versionadas no repositório; esta tabela e as descrições
+acima são a referência do que existe no banco.
 
-A mesma lógica (função `SECURITY DEFINER`, checando `status`, ausência de bloqueio
-mútuo e `is_available` + presença real antes de gravar) vale para `quick_start` e
-para a criação de `blocks` a partir de uma denúncia. O Claude Code deve implementar
-todas as escritas sensíveis (match, bloqueio, banimento) como funções RPC — nunca
-como insert/update direto exposto ao client.
+| Função | Tipo | Papel |
+|---|---|---|
+| `fn_get_swipe_deck` | INVOKER | Deck do swipe: exclui o próprio usuário, já swipados, matches, bloqueados (`fn_pair_is_blocked`) e contas inativas; filtros de função, rank e horário; até 50 |
+| `fn_get_available_now` | INVOKER | "Disponíveis agora": cruza os ids da presença com `is_available`; paginação por cursor; mesma exclusão de bloqueados |
+| `fn_get_conversations` | DEFINER | Lista de conversas com prévia, não lida e somente-leitura (o perfil de um banido é invisível pela RLS, então precisa ler como definer) |
+| `fn_get_unread_matches_count` | DEFINER | Badge da aba Matches (conversas, não mensagens; bloqueadas não contam) |
+| `fn_mark_match_read` | INVOKER | Marca a conversa como lida com o relógio do servidor (upsert em `match_reads`) |
+| `fn_get_notifications` | DEFINER | Notificações com o outro usuário e o match já resolvidos |
+| `fn_get_blocked_users` | DEFINER | Bloqueios que o próprio usuário criou (3.7) |
+| `fn_pass_swipe`, `fn_create_match_from_swipe`, `fn_create_quick_match`, `fn_block_user`, `fn_report_user` | DEFINER | Escritas dos usuários (regras acima) |
+| `fn_admin_list_users`, `fn_admin_get_user_reports`, `fn_admin_get_report_conversation`, `fn_admin_review_report`, `fn_admin_ban_user`, `fn_admin_unban_user` | DEFINER | Administração (6.8) |
+| `fn_current_user_is_active`, `fn_current_user_is_admin` | DEFINER | Auxiliares das policies (evitam recursão de RLS em `profiles`) |
+| `fn_pair_is_blocked` | DEFINER | Diz se há bloqueio de qualquer lado do par, sem depender da policy de `blocks` (usada em `messages` e no deck) |
+| `fn_protect_profile_privileged_columns` | trigger | Proteção de `profiles` (8.1) |
+| `fn_enforce_message_rate_limit` | trigger | Limite e `created_at` do servidor em `messages` (3.5) |
+| `fn_touch_match_last_message` | trigger | Mantém `matches.last_message_at` (3.5) |
 
-**Banimento pela UI** (`fn_admin_ban_user`, `fn_admin_unban_user`, `fn_admin_list_users`,
-`fn_admin_get_user_reports`): mesmo
-padrão das demais RPCs — `SECURITY DEFINER`, `search_path` fixo, `auth.uid()` não nulo
-(`not authenticated`), conta ativa (`inactive account`, para um admin banido não conseguir se
-desbanir), `permission_level = 'admin'` (`not authorized`) e alvo existente (`invalid target`).
-Banir admin é recusado (`cannot ban another admin`). São idempotentes: banir quem já está
-banido não sobrescreve `banned_by`/`banned_at`; desbanir quem está ativo não faz nada. Banir
-também marca como `reviewed` as denúncias `pending` contra o alvo (mesma transação; ver 6.8).
-`EXECUTE` é revogado de `public`, `anon` **e** `authenticated` e concedido só a
-`authenticated` (os privilégios padrão do Supabase dão EXECUTE direto a `anon`/`authenticated`,
-então `revoke ... from public` sozinho deixaria `anon` chamando).
-
-A listagem (`fn_admin_list_users`) e as denúncias (`fn_admin_get_user_reports`) seguem as mesmas
-guardas. A busca usa índice trigram (`pg_trgm`, no schema `extensions`) em `lower(username)`; o
-`LIKE` recebe o texto com `\`, `%` e `_` escapados, e o e-mail é comparado por igualdade
-(nunca `LIKE`). O e-mail só sai na busca por e-mail. Índices de apoio: `profiles (created_at desc,
-id desc)`, `reports (reported_id, created_at desc) where status = 'pending'` (fila) e
-`reports (reported_id, created_at desc)` (denúncias de um usuário).
+As funções `INVOKER` continuam sujeitas à RLS do chamador; por isso **não podem ler `blocks`
+direto** (só enxergariam os bloqueios criados por ele) e usam `fn_pair_is_blocked` (5).
 
 ### 8.3 Realtime e RLS
 O Supabase Realtime só respeita RLS em `postgres_changes` se a replicação estiver
 configurada corretamente por tabela. É preciso confirmar explicitamente que as
 subscriptions em `matches`, `messages` e `notifications` estão sujeitas às mesmas
 policies de select — do contrário, um evento pode vazar dados de outro usuário pelo
-canal Realtime mesmo que a query REST equivalente estivesse protegida.
+canal Realtime mesmo que a query REST equivalente estivesse protegida. A publicação
+`supabase_realtime` inclui `matches`, `messages`, `notifications` e `match_reads` (esta última só
+para o badge de não lidas se corrigir sozinho quando a conversa é aberta em outra aba).
+**Verificado**: com 5 conexões simultâneas (3 contas, 1 intrusa e 1 anônima) assinando essas tabelas
+sem filtro, cada conta recebeu só os próprios eventos e a intrusa e a anônima não receberam nenhum.
+As policies de `select` que chamam `fn_current_user_is_active()` são restritas a `authenticated`: no
+papel `public` o `anon` as avaliaria sem ter `EXECUTE` na função, e um assinante anônimo (a anon key é
+pública) derrubaria a entrega de eventos para todos.
 
 ### 8.4 Presence não é fonte de verdade para autorização
 Payloads de `track()` no canal de Presence são definidos pelo próprio client e podem
@@ -680,22 +748,27 @@ autorização real continua vindo de RLS/RPC, não do payload de presença.
   projeto não fiquem versionadas no repositório (`.env` no `.gitignore`).
 
 ### 8.6 Upload de avatar
-- Bucket de storage com policy restringindo upload/update/delete ao próprio usuário
+- Bucket `avatars` com policy restringindo upload/update/delete ao próprio usuário
   (path prefixado por `user_id`), não um bucket com escrita aberta a qualquer
-  autenticado.
-- Validar tipo de arquivo (apenas image/png, image/jpeg, image/webp) e tamanho
-  máximo no client **e** via policy/constraint no bucket — nunca confiar só na
-  validação client-side.
-- Não aceitar upload de SVG sem sanitização (SVG pode carregar `<script>` embutido —
-  risco de XSS se o arquivo for servido com o content-type errado ou renderizado
-  inline).
+  autenticado. O arquivo é sempre `<user_id>/avatar` (o upload usa `upsert`).
+- Tipo e tamanho validados no client (pelo conteúdo do arquivo, não pela extensão, então um SVG
+  renomeado não passa) **e** no próprio bucket: 5 MB e só image/png, image/jpeg e image/webp.
+- SVG não é aceito (pode carregar `<script>`; risco de XSS se servido com o content-type errado).
+  O Storage serve os objetos com `nosniff`.
+- `profiles.avatar_url` só aceita a URL pública do bucket deste projeto, no caminho do próprio perfil
+  (constraint em 3.1); escrever a coluna direto com outra URL é recusado.
+- Limite de **volume** não existe: a policy só confere a pasta, então uma conta pode enviar vários
+  arquivos de até 5 MB com nomes diferentes dentro da própria pasta, mesmo banida. Risco conhecido e
+  não tratado no MVP (seção 9).
 
 ### 8.7 Conteúdo gerado por usuário (bio, username, mensagens)
 - React escapa JSX por padrão — não usar `dangerouslySetInnerHTML` em nenhum ponto
   que renderize bio, username ou conteúdo de mensagens.
-- Mesmo assim, sanitizar/validar no insert (tamanho máximo já garantido por
-  `varchar(50)` na bio; aplicar limite equivalente em `messages.content` a nível de
-  aplicação e, idealmente, por `check constraint` no banco).
+- Mesmo assim, os limites também valem no banco (chamada REST direta não passa pela UI):
+  `bio` varchar(50), `messages.content` ≤ 2000, `reports.details` ≤ 500, `username` no formato de Riot ID
+  (3.1), `availability_schedule` ≤ 100 e `avatar_url` no formato do bucket. `main_agent_id` é chave
+  estrangeira para `agents`, então só aceita agente cadastrado. Uma mensagem só com espaços passa no
+  banco (o client não a envia).
 
 ### 8.8 Abuso e limitação de taxa
 RLS não limita volume — nada impede, hoje, que uma conta envie milhares de swipes,
@@ -712,7 +785,9 @@ conversas) e checagem dentro de `fn_report_user` (máx. **3 denúncias/min por u
 estourar, o banco levanta `rate_limit_exceeded` e a interface mostra uma mensagem clara. O
 **quick match** também tem limite (`fn_create_quick_match`: máx. **3 chats iniciados por minuto e
 15 por 24 h por usuário**, seção 4.2), para uma conta não encher a lista de conversas de todos os
-disponíveis. Swipes não têm limite no MVP.
+disponíveis. Swipes não têm limite no MVP (o `insert` direto em `swipes` continua permitido pela
+policy, só para a própria conta ativa; ver seção 9). O `created_at` das mensagens vem do servidor
+para o limite não ser burlado com uma data no passado (3.5).
 
 **Risco aceito conscientemente — Leaked password protection**: a checagem de senhas vazadas
 (HaveIBeenPwned) do Supabase Auth é recurso do plano Pro, indisponível no free tier. Fica de
@@ -746,14 +821,49 @@ aqui como risco aceito conscientemente, não como omissão.
 - Variáveis de ambiente (URL e anon key do Supabase) configuradas nas Environment
   Variables do projeto na Vercel, não commitadas no repositório.
 
+### 8.11 Checklist de deploy
+O banco de produção é o mesmo projeto Supabase usado no desenvolvimento (não há ambiente separado),
+então o que já está aplicado no banco não precisa ser repetido. Falta, no deploy:
+
+- **Hospedagem**: `vercel.json` no repositório (reescrita de SPA para `index.html` e cabeçalhos/CSP,
+  ver 8.10) e as duas variáveis de ambiente do frontend (`VITE_SUPABASE_URL`,
+  `VITE_SUPABASE_ANON_KEY`). A service role key nunca entra.
+- **Auth → URL Configuration**: Site URL com o domínio real e o domínio (e o de preview, se usado)
+  em Redirect URLs. O fluxo de recuperação de senha (6.9) depende disso.
+- **Auth → e-mail**: confirmação de e-mail ligada e SMTP próprio configurado (o SMTP padrão do
+  Supabase é limitado e serve só para teste), com os templates de "Confirm signup" e "Reset Password"
+  no visual do app.
+- **Textos legais**: em `src/lib/legal.ts`, trocar `LEGAL_DRAFT` para `false` só depois da revisão
+  jurídica (a política ainda precisa identificar o controlador dos dados) e conferir `LEGAL`
+  (e-mail de contato e região). Ao publicar uma nova versão dos textos, alterar `TERMS_VERSION`: quem
+  aceitou a anterior vê a tela de aceite obrigatório (6.10).
+- **Project ref**: a constraint de `profiles.avatar_url` (3.1) tem o ref do projeto fixo. Se o app
+  passar a usar outro projeto Supabase, recriar a constraint por migration.
+- **Primeiro admin**: promover por SQL (seção 11). Não existe tela para isso.
+- **Dependências**: rodar `npm audit` antes de publicar (8.10).
+
 ## 9. Pontos em aberto / fora do MVP
 
 - **Moderação dedicada**: nível `moderator` em `permission_level`, chat de moderação
   separado, tela de gestão/promoção de moderador — tudo fora do MVP (prazo de 2-3
-  dias). Banir e desbanir tem tela própria (seção 6.8, adicionada depois do lançamento);
-  o resto da moderação (`reports.status`, `blocks`, promoção a admin) continua o admin
-  agindo direto no Supabase. Chat entre admin e usuário e revisão de denúncias pela UI
-  seguem fora de escopo.
+  dias). A tela de administração (6.8) cobre fila de denúncias, conversa da denúncia, marcar como
+  revisada e banir/desbanir. Continuam manuais, por SQL (seção 11): promover a admin e remover o
+  bloqueio criado por uma denúncia. Chat entre admin e usuário segue fora de escopo.
+- **Exclusão de conta e dados (LGPD)**: o app não tem botão de exclusão (decisão do MVP) e a Política
+  de Privacidade diz que a exclusão é feita por pedido ao e-mail de contato. O procedimento manual
+  ainda não está definido: apagar ou anonimizar o perfil, o que fazer com mensagens, denúncias e
+  banimentos ligados à conta (denúncias e banimentos podem precisar ser mantidos), o arquivo do avatar
+  no bucket e o usuário em `auth.users`. Definir e documentar antes de haver usuários reais.
+- **Denunciar fora do chat**: a denúncia só é acessível pelo header do chat (requisito 27); quem
+  aparece no deck ou em Disponíveis agora não pode ser denunciado antes de haver conversa.
+- **Quick match sem aviso ao destinatário**: `fn_create_quick_match` não cria notificação; o
+  destinatário só vê a conversa na lista (ver 4.2).
+- **Índice em `matches(user_b_id)`**: a consulta das conversas filtra por `user_a_id` **ou**
+  `user_b_id`, mas só existe índice único começando por `user_a_id`. Não pesa com poucas contas;
+  criar `matches(user_b_id)` quando a tabela crescer. (As policies já usam `(select auth.uid())`, então
+  não há reavaliação por linha.)
+- **Volume de upload de avatar** e **swipes sem limite** (8.6, 8.8): riscos conhecidos, sem
+  tratamento no MVP.
 - Lista exata de categorias fixas em `reports.category` — ajustar na implementação
   se necessário.
 - Histórico de banimentos múltiplos: `banned_by`/`banned_at` guardam só a última
@@ -812,12 +922,12 @@ Módulo: Denúncia e Bloqueio
 33. O sistema deve permitir que o próprio usuário reverta um bloqueio voluntário
 34. O sistema deve restringir a reversão de bloqueio originado de denúncia a usuários com permission_level=admin
 
-Módulo: Moderação e Banimento (admin; banir/desbanir pela tela /app/admin/users, o resto direto no Supabase)
+Módulo: Moderação e Banimento (admin; tela /app/admin/users; promover a admin e remover bloqueio de denúncia são manuais, seção 11)
 35. O sistema deve permitir que um admin bana um usuário comum pela UI (fn_admin_ban_user), alterando profiles.status para banned, registrando banned_by e banned_at e marcando como revisadas as denúncias pendentes contra ele
 36. O sistema deve bloquear, para contas banidas: descoberta, leitura/escrita de mensagens (inclusive histórico antigo), presença Realtime, envio de denúncias e bloqueios
 37. O sistema deve exibir uma tela de bloqueio total substituindo a navegação para o usuário banido, informando seu status
 38. O sistema deve permitir que um admin reverta o banimento pela UI (fn_admin_unban_user: status volta a active, banned_by e banned_at são limpos)
-39. O sistema deve permitir que um admin revise a fila de denúncias pendentes diretamente no Supabase
+39. O sistema deve permitir que um admin revise a fila de denúncias pendentes pela UI: ver a conversa entre denunciante e denunciado e marcar a denúncia como revisada sem banir (fn_admin_review_report, registrando reviewed_by e reviewed_at)
 
 Módulo: Notificações
 40. O sistema deve criar uma notificação in-app do tipo match para ambos os usuários ao ocorrer um match
@@ -839,4 +949,57 @@ Módulo: Termos, privacidade e aceite
 50. O sistema deve exigir, no cadastro, o aceite dos Termos e da Política com a declaração de idade mínima de 18 anos, registrar a versão aceita e a data (do servidor) no perfil e recusar, no servidor, a criação de perfil sem esse aceite
 51. O sistema deve bloquear o uso do app para quem não aceitou a versão vigente dos Termos e da Política (contas anteriores ao aceite ou após nova versão), exibindo uma tela de aceite obrigatório e permitindo sair da conta
 ```
+
+## 11. Operações manuais (SQL Editor)
+
+Só duas coisas não têm tela nem RPC e continuam por SQL, executadas no SQL Editor do Supabase por
+quem administra o projeto: **promover/rebaixar um admin** e **remover o bloqueio criado por uma
+denúncia** (a UI de administração não mexe em `blocks`, 3.7). Tudo o mais que aparecia aqui como
+manual (banir, desbanir, revisar denúncia, agentes) tem tela ou está na seção 3.9.
+
+No SQL Editor `auth.uid()` é nulo, então o trigger de proteção de `profiles` não restringe o
+`update` (8.1). É isso que permite alterar `permission_level` ali, e é por isso que o mesmo `update`
+feito pelo app não funciona. Rode as consultas antes de qualquer `update`/`delete` e confira o
+resultado.
+
+**Achar o id do usuário** (pelo Riot ID, sem diferenciar maiúsculas, ou pelo e-mail):
+
+```sql
+select id, username, permission_level, status
+from public.profiles
+where lower(username) = lower('Nome#TAG');
+
+select p.id, p.username
+from public.profiles p
+join auth.users u on u.id = p.id
+where u.email = 'email@exemplo.com';
+```
+
+**Promover a admin** (a pessoa precisa ter perfil; o primeiro admin do sistema é feito assim).
+Para rebaixar, use `'user'`:
+
+```sql
+update public.profiles
+set permission_level = 'admin'
+where id = '<uuid>';
+```
+
+**Desbloquear um par** (por exemplo, depois de revisar uma denúncia improcedente). Um par pode ter
+uma linha por lado (3.7), então veja as linhas e remova as duas. A denúncia continua registrada com o
+status dela; para mudá-lo use "Marcar como revisada" na tela de administração:
+
+```sql
+select id, blocker_id, report_id
+from public.blocks
+where user_a_id = least('<uuid_a>'::uuid, '<uuid_b>'::uuid)
+  and user_b_id = greatest('<uuid_a>'::uuid, '<uuid_b>'::uuid);
+
+delete from public.blocks
+where user_a_id = least('<uuid_a>'::uuid, '<uuid_b>'::uuid)
+  and user_b_id = greatest('<uuid_a>'::uuid, '<uuid_b>'::uuid);
+```
+
+O desbloqueio vale para os dois usuários ao mesmo tempo: se só um dos lados deve deixar de bloquear,
+apague apenas a linha com o `blocker_id` dele (`... and blocker_id = '<uuid>'`). O usuário que
+bloqueou voluntariamente desfaz o próprio bloqueio sozinho, pela tela de Usuários bloqueados (6.5).
 
