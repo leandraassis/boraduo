@@ -96,6 +96,12 @@ export function Login() {
               error={touched.password ? passwordError : null}
             />
 
+            <p className="-mt-2 text-right">
+              <Link to="/forgot-password" className="text-sm font-medium text-match hover:underline">
+                Esqueci minha senha
+              </Link>
+            </p>
+
             {submitError && (
               <p role="alert" className={errorBannerClass}>
                 {submitError}

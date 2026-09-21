@@ -70,6 +70,9 @@ export function AvailableNowList({ filters, onOpenFilters }: AvailableNowListPro
       if (error instanceof QuickMatchError && error.reason === 'unavailable') {
         showToast(`${profile.username} não está mais disponível.`)
         retry()
+      } else if (error instanceof QuickMatchError && error.reason === 'rate_limited') {
+        // O limite é por minuto e por dia; o texto vale para os dois casos.
+        showToast('Você atingiu o limite de chats iniciados por enquanto. Tente de novo mais tarde.')
       } else {
         showToast('Não foi possível iniciar o chat. Tente de novo.')
       }

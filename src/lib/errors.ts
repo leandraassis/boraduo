@@ -43,15 +43,43 @@ export function signUpErrorMessage(error: SupabaseErrorLike): string {
   return 'Não foi possível criar sua conta agora. Tente de novo.'
 }
 
-// No insert do onboarding, 23505 é ambíguo: tanto reenvio duplicado do mesmo perfil (colide com a PK
-// `id`, já foi criado, seguro tratar como sucesso) quanto Riot ID já usado por outra conta (colide com
-// `profiles_username_unique_ci_idx`, o insert falhou de verdade). Só o texto da constraint distingue.
+// Pedido do link de recuperação. O Supabase responde sucesso também para e-mail não cadastrado (de propósito, para
+// não revelar quais contas existem), então só os erros de limite e de rede chegam aqui.
+export function resetRequestErrorMessage(error: SupabaseErrorLike): string {
+  if (isNetworkError(error)) return NETWORK_MESSAGE
+  if (isRateLimited(error)) return RATE_LIMIT_MESSAGE
+  return 'Não foi possível enviar o link agora. Tente de novo.'
+}
+
+// Sem sessão de recuperação válida (link expirado, já usado ou aba antiga): a troca de senha não tem como prosseguir.
+export function isSessionMissingError(error: SupabaseErrorLike): boolean {
+  return error.name === 'AuthSessionMissingError' || error.code === 'session_not_found' || error.status === 401
+}
+
+export function updatePasswordErrorMessage(error: SupabaseErrorLike): string {
+  if (isNetworkError(error)) return NETWORK_MESSAGE
+  if (isRateLimited(error)) return RATE_LIMIT_MESSAGE
+  if (error.code === 'same_password') return 'A nova senha precisa ser diferente da atual.'
+  if (error.code === 'weak_password') return 'Essa senha é fraca demais. Escolha outra.'
+  return 'Não foi possível alterar a senha agora. Tente de novo.'
+}
+
+
 export function isUsernameTakenError(error: SupabaseErrorLike): boolean {
   return error.code === '23505' && /profiles_username_unique_ci_idx/.test(error.message ?? '')
 }
 
+export function acceptTermsErrorMessage(error: SupabaseErrorLike): string {
+  if (isNetworkError(error)) return NETWORK_MESSAGE
+  return 'Não foi possível registrar seu aceite agora. Tente de novo.'
+}
+
 export function createProfileErrorMessage(error: SupabaseErrorLike): string {
   if (isNetworkError(error)) return NETWORK_MESSAGE
+  // O aceite dos Termos vem do cadastro (user_metadata); conta criada sem ele não pode criar perfil.
+  if (/terms not accepted/i.test(error.message ?? '')) {
+    return 'Para criar o perfil é preciso ter aceitado os Termos de Uso e a Política de Privacidade no cadastro. Saia e crie a conta de novo pela tela de cadastro.'
+  }
   if (error.code === '23505') return 'Esse Riot ID já está cadastrado. Escolha outro.'
   if (error.code === '23514') return 'Revise o Riot ID: use o formato Nome#TAG (ex: Fenix#1234).'
   return 'Não foi possível criar seu perfil. Tente de novo.'

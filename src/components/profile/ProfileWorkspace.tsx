@@ -265,6 +265,20 @@ export function ProfileWorkspace({ profile, onProfileChange }: ProfileWorkspaceP
 
             <BlockedUsersSection />
 
+            <section aria-label="Documentos legais" className="order-7 rounded-2xl border border-line bg-surface p-4 sm:p-5 md:order-none">
+              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-sm">
+                <p className="text-ink-muted">Documentos</p>
+                <div className="flex flex-wrap gap-x-4 gap-y-1">
+                  <Link to="/termos" target="_blank" rel="noopener noreferrer" className="font-medium text-match hover:underline">
+                    Termos de Uso
+                  </Link>
+                  <Link to="/privacidade" target="_blank" rel="noopener noreferrer" className="font-medium text-match hover:underline">
+                    Política de Privacidade
+                  </Link>
+                </div>
+              </div>
+            </section>
+
             {profile.permission_level === 'admin' && (
               <section className="order-6 rounded-2xl border border-line bg-surface p-4 sm:p-5 md:order-none">
                 <div className="flex items-center justify-between gap-4">

@@ -63,7 +63,7 @@ export async function fetchAvailablePage(
   }))
 }
 
-export type QuickMatchFailure = 'unavailable' | 'other'
+export type QuickMatchFailure = 'unavailable' | 'rate_limited' | 'other'
 
 export class QuickMatchError extends Error {
   readonly reason: QuickMatchFailure
@@ -74,11 +74,18 @@ export class QuickMatchError extends Error {
   }
 }
 
-// Toda a validação real (contas ativas, alvo disponível, sem bloqueio) fica na RPC; o client só traduz o erro.
+// Toda a validação real (contas ativas, alvo disponível, sem bloqueio, limite de chats iniciados) fica na RPC;
+// o client só traduz o erro.
 export async function quickMatch(targetId: string, myId: string): Promise<string> {
   const { error } = await supabase.rpc('fn_create_quick_match', { p_target_id: targetId })
   if (error) {
-    throw new QuickMatchError(error.message === 'target not available' ? 'unavailable' : 'other')
+    throw new QuickMatchError(
+      error.message === 'target not available'
+        ? 'unavailable'
+        : error.message.includes('rate_limit_exceeded')
+          ? 'rate_limited'
+          : 'other',
+    )
   }
 
   const { data, error: lookupError } = await supabase

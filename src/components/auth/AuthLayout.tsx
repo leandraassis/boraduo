@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 import { Logo } from '../Logo'
 
 const backgroundStyle = {
@@ -28,6 +29,14 @@ export function AuthLayout({ children, centered = false }: { children: ReactNode
         <main className={`flex flex-1 flex-col pb-10 ${centered ? 'justify-center' : ''}`}>{children}</main>
 
         <footer className="border-t border-line py-6 text-center text-xs leading-5 text-ink-muted">
+          <nav aria-label="Documentos legais" className="mb-2 flex justify-center gap-4">
+            <Link to="/termos" className="font-medium hover:text-ink hover:underline">
+              Termos de Uso
+            </Link>
+            <Link to="/privacidade" className="font-medium hover:text-ink hover:underline">
+              Política de Privacidade
+            </Link>
+          </nav>
           BoraDuo é uma plataforma independente, não afiliada nem endossada pela Riot Games, Inc.
         </footer>
       </div>

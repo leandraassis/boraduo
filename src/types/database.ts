@@ -7,8 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
@@ -125,6 +123,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          initiator_id: string | null
           last_message_at: string
           origin: Database["public"]["Enums"]["match_origin"]
           user_a_id: string
@@ -133,6 +132,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          initiator_id?: string | null
           last_message_at?: string
           origin: Database["public"]["Enums"]["match_origin"]
           user_a_id: string
@@ -141,12 +141,20 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          initiator_id?: string | null
           last_message_at?: string
           origin?: Database["public"]["Enums"]["match_origin"]
           user_a_id?: string
           user_b_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "matches_initiator_id_fkey"
+            columns: ["initiator_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "matches_user_a_id_fkey"
             columns: ["user_a_id"]
@@ -252,6 +260,8 @@ export type Database = {
           rank: Database["public"]["Enums"]["rank_type"]
           role: Database["public"]["Enums"]["role_type"]
           status: Database["public"]["Enums"]["account_status"]
+          terms_accepted_at: string | null
+          terms_version: string | null
           username: string
         }
         Insert: {
@@ -268,6 +278,8 @@ export type Database = {
           rank: Database["public"]["Enums"]["rank_type"]
           role: Database["public"]["Enums"]["role_type"]
           status?: Database["public"]["Enums"]["account_status"]
+          terms_accepted_at?: string | null
+          terms_version?: string | null
           username: string
         }
         Update: {
@@ -284,6 +296,8 @@ export type Database = {
           rank?: Database["public"]["Enums"]["rank_type"]
           role?: Database["public"]["Enums"]["role_type"]
           status?: Database["public"]["Enums"]["account_status"]
+          terms_accepted_at?: string | null
+          terms_version?: string | null
           username?: string
         }
         Relationships: [

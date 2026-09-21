@@ -2,13 +2,15 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useProfile } from '../hooks/useProfile'
 import { useSession } from '../hooks/useSession'
+import { TERMS_VERSION } from '../lib/legal'
 import { supabase } from '../lib/supabase'
+import { TermsGate } from './legal/TermsGate'
 import { ScreenError, ScreenSkeleton } from './ScreenStates'
 
 export function AppGuard({ children }: { children: ReactNode }) {
   const { session, loading: sessionLoading } = useSession()
   const userId = session?.user.id
-  const { profile, loading: profileLoading, error: profileError, retry } = useProfile(userId)
+  const { profile, loading: profileLoading, error: profileError, retry, setProfile } = useProfile(userId)
   const { pathname } = useLocation()
   const [bannedMidSession, setBannedMidSession] = useState(false)
 
@@ -60,6 +62,10 @@ export function AppGuard({ children }: { children: ReactNode }) {
 
   if (profile.status === 'banned' || bannedMidSession) {
     return <Navigate to="/banned" replace />
+  }
+
+  if (profile.terms_version !== TERMS_VERSION) {
+    return <TermsGate profile={profile} onAccepted={setProfile} />
   }
 
   return children

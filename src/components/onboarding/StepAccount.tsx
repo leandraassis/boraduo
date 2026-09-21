@@ -1,18 +1,22 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { signUpErrorMessage } from '../../lib/errors'
+import { TERMS_VERSION } from '../../lib/legal'
 import { PASSWORD_MIN_LENGTH, PASSWORD_RULES } from '../../lib/passwordRules'
 import { supabase } from '../../lib/supabase'
+import { PasswordChecklist } from '../auth/PasswordChecklist'
 import { PasswordField, TextField } from '../auth/TextField'
-import { errorBannerClass, primaryButtonClass, smallLabelClass } from '../formStyles'
-import { ArrowRightIcon, CheckIcon, LockIcon, MailIcon } from '../icons'
+import { errorBannerClass, primaryButtonClass } from '../formStyles'
+import { ArrowRightIcon, LockIcon, MailIcon } from '../icons'
+import { AcceptTermsCheckbox } from '../legal/AcceptTermsCheckbox'
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export function StepAccount() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [touched, setTouched] = useState<{ email?: boolean; password?: boolean }>({})
+  const [touched, setTouched] = useState<{ email?: boolean; password?: boolean; terms?: boolean }>({})
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [awaitingConfirmation, setAwaitingConfirmation] = useState(false)
@@ -24,16 +28,22 @@ export function StepAccount() {
     : passwordChecks.some((check) => !check.met)
       ? 'A senha não atende a todos os requisitos'
       : null
-  const isValid = !emailError && !passwordError
+  const termsError = acceptedTerms ? null : 'Aceite os Termos e a Política para criar a conta'
+  const isValid = !emailError && !passwordError && !termsError
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    setTouched({ email: true, password: true })
+    setTouched({ email: true, password: true, terms: true })
     if (!isValid) return
 
     setSubmitting(true)
     setSubmitError(null)
-    const { data, error } = await supabase.auth.signUp({ email, password })
+
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { terms_version: TERMS_VERSION } },
+    })
     setSubmitting(false)
 
     if (error) {
@@ -90,27 +100,16 @@ export function StepAccount() {
         error={touched.password ? passwordError : null}
       />
 
-      <div className="rounded-xl border border-line bg-field/60 p-4">
-        <p className={`mb-3 ${smallLabelClass}`}>Requisitos de segurança</p>
-        <ul className="grid gap-x-4 gap-y-2.5 sm:grid-cols-2">
-          {passwordChecks.map((check) => (
-            <li
-              key={check.id}
-              className={`flex items-center gap-2.5 text-sm transition-colors ${check.met ? 'text-ready' : 'text-ink-muted'}`}
-            >
-              <span
-                className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors ${
-                  check.met ? 'border-ready bg-ready/15' : 'border-line-strong'
-                }`}
-              >
-                {check.met && <CheckIcon className="h-3 w-3" />}
-              </span>
-              <span className="sr-only">{check.met ? 'Atendido: ' : 'Pendente: '}</span>
-              {check.label}
-            </li>
-          ))}
-        </ul>
-      </div>
+      <PasswordChecklist password={password} />
+
+      <AcceptTermsCheckbox
+        checked={acceptedTerms}
+        onChange={(checked) => {
+          setAcceptedTerms(checked)
+          setTouched((t) => ({ ...t, terms: true }))
+        }}
+        error={touched.terms ? termsError : null}
+      />
 
       {submitError && (
         <p role="alert" className={errorBannerClass}>

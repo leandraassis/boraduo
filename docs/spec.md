@@ -23,8 +23,8 @@ persistidas até o usuário abrir o app (sem push nativo, sem e-mail).
   (quase tudo privado/autenticado e dinâmico via Realtime, então SSR não traz ganho
   de SEO nem de performance percebida relevante).
 - **Backend/DB/Auth/Realtime**: Supabase (Postgres + RLS + Auth + Realtime Presence)
-- **Autenticação**: Supabase Auth, provider único de email/senha. Sem Discord OAuth
-  no MVP (avaliar como provider adicional depois, não bloqueante).
+- **Autenticação**: Supabase Auth, provider único de email/senha, com recuperação de senha por
+  e-mail (seção 6.9). Sem Discord OAuth no MVP (avaliar como provider adicional depois, não bloqueante).
 - **Deploy**: Vercel (build estático do Vite/SPA). HTTPS e domínio com TLS
   automáticos — não precisa de configuração manual de certificado.
 - **Conexão de desenvolvimento com o Supabase**: o projeto Supabase é criado
@@ -55,6 +55,8 @@ Estende `auth.users` (relação 1:1 por `id`).
 | `banned_by` | uuid, nullable, FK → profiles | Auditoria de quem baniu |
 | `banned_at` | timestamptz, nullable | |
 | `created_at` | timestamptz | |
+| `terms_version` | text, nullable | Versão dos Termos de Uso e da Política de Privacidade aceita (`AAAA-MM-DD`, `CHECK` de formato). Nulo nas contas anteriores ao aceite. Ver 6.10 |
+| `terms_accepted_at` | timestamptz, nullable | Quando aceitou essa versão. Sempre do servidor (trigger), nunca do cliente |
 
 **Regra de desconexão**: `is_available` (intenção, persistida) e presença real
 (Supabase Presence) são independentes — desconectar não zera `is_available`
@@ -91,10 +93,12 @@ RLS: usuário só lê linhas onde ele é `swiper_id`.
 | `user_a_id` | uuid, FK → profiles | Par normalizado: sempre `user_a_id < user_b_id` |
 | `user_b_id` | uuid, FK → profiles | |
 | `origin` | enum | `swipe \| quick_start` |
+| `initiator_id` | uuid, nullable, FK → profiles | Quem iniciou o quick match (um dos dois do par). Nulo em matches por swipe e nos quick matches anteriores ao limite (não contam para ele). Base do limite de quick match (seção 4.2) |
 | `last_message_at` | timestamptz | **Desnormalizado**, atualizado via trigger a cada `insert` em `messages`. Usado para ordenar a lista de conversas por atividade recente |
 | `created_at` | timestamptz | |
 
-Constraint: `unique(user_a_id, user_b_id)`.
+Constraint: `unique(user_a_id, user_b_id)`; `check (initiator_id is null or initiator_id in (user_a_id, user_b_id))`.
+Índice parcial `(initiator_id, created_at desc) where origin = 'quick_start'` para a contagem do limite.
 
 No MVP, toda linha em `matches` é implicitamente confirmada (sem estado "pendente").
 
@@ -146,8 +150,10 @@ leitura para ambos.
 Sem moderação automática — toda denúncia fica pendente até revisão manual por admin.
 
 ### 3.7 `blocks`
-Bloqueio entre dois usuários — por denúncia (automático) ou voluntário. Uma única
-linha por par normalizado, lida nos dois sentidos pela RLS.
+Bloqueio entre dois usuários — por denúncia (automático) ou voluntário. Uma linha por par
+normalizado **e por quem bloqueou** (até duas por par: cada lado tem o seu bloqueio). O par está
+bloqueado enquanto existir qualquer linha; os efeitos valem nos dois sentidos, mas cada usuário só
+enxerga (e só remove) a linha que ele mesmo criou.
 
 | Campo | Tipo | Notas |
 |---|---|---|
@@ -158,7 +164,8 @@ linha por par normalizado, lida nos dois sentidos pela RLS.
 | `report_id` | uuid, nullable, FK → reports | Presente se originado de denúncia |
 | `created_at` | timestamptz | |
 
-Constraint: `unique(user_a_id, user_b_id)`; `check (blocker_id in (user_a_id, user_b_id))`.
+Constraint: `unique(user_a_id, user_b_id, blocker_id)` (`blocks_pair_blocker_key`);
+`check (blocker_id in (user_a_id, user_b_id))`.
 
 Efeito: os dois usuários deixam de aparecer um para o outro; conversa existente vira
 somente leitura.
@@ -166,7 +173,15 @@ somente leitura.
 **Reversão**: `report_id` presente → só `permission_level = admin` remove.
 `report_id` nulo (voluntário) → o próprio usuário que bloqueou (`blocker_id`) remove quando
 quiser; o bloqueado nunca remove. Se quem já bloqueou voluntariamente depois denuncia o mesmo
-usuário, o bloqueio passa a ser de denúncia (`report_id` preenchido).
+usuário, o bloqueio dele passa a ser de denúncia (`report_id` preenchido).
+
+**Bloqueios cruzados**: se o agressor já tinha bloqueado a vítima e a vítima o denuncia, a denúncia
+cria a linha **da vítima** (com `report_id`) ao lado da voluntária do agressor. O agressor pode remover
+a dele, mas o par continua bloqueado pela da vítima, e nenhum dos dois é informado do que o outro fez
+(a lista "Usuários bloqueados" de cada um só mostra as linhas em que ele é o `blocker_id`). Da mesma
+forma, se A bloqueia B e depois B bloqueia A, o bloqueio de B é registrado e o par só reabre quando
+os dois removerem. Consequência para a moderação: apagar o bloqueio de denúncia não desbloqueia o par
+se o outro lado ainda tiver um bloqueio voluntário.
 
 ### 3.8 `notifications`
 Central de notificações — persistente, visível mesmo se o usuário não estava online
@@ -210,8 +225,13 @@ sobreviver a troca de dispositivo nem ser auditável.
 ### 4.1 Swipe → Match
 1. Usuário dá like/pass em `swipes`.
 2. Se like recíproco, cria-se linha em `matches` (`origin = swipe`) via
-   `insert ... on conflict do nothing` sobre o par normalizado.
-3. Cria-se notificação (`type = match`) para os dois usuários.
+   `insert ... on conflict do nothing` sobre o par normalizado. `fn_create_match_from_swipe` toma
+   antes um `pg_advisory_xact_lock` sobre o par normalizado, que serializa os dois sentidos (A→B e
+   B→A): sem ele, dois likes simultâneos não enxergam o swipe ainda não commitado um do outro e o
+   match nunca nasce (req. 14).
+3. Cria-se notificação (`type = match`) para os dois usuários **somente se aquela chamada criou o
+   match** (`returning id`). Chamada repetida, ou match que já existia (ex.: `quick_start`), não gera
+   notificação nem duplica o badge.
 4. Chat liberado automaticamente pela RLS.
 5. Se o usuário está na tela Discover no momento do match, modal fullscreen "É um
    match!" dispara via Realtime (ver nota técnica na seção 7). Se offline/fora da
@@ -228,15 +248,21 @@ sobreviver a troca de dispositivo nem ser auditável.
    após a primeira vez (`seen_availability_warning` em localStorage).
 4. Clique num perfil cria diretamente `matches` (`origin = quick_start`), sem exigir
    reciprocidade. Confirmação sóbria (toast "Chat iniciado com [nome]"), não modal
-   de celebração.
+   de celebração. `fn_create_quick_match` grava `initiator_id = auth.uid()` e **limita os chats
+   iniciados por usuário a 3 por minuto e 15 por 24 h**; acima disso levanta `rate_limit_exceeded`
+   e a tela mostra um aviso (o texto vale para os dois limites). Só contam matches realmente criados.
+   Chamar quem já tem chat com o usuário não cria nada, não gasta cota e apenas reabre a conversa.
+   As chamadas do mesmo usuário são serializadas por `pg_advisory_xact_lock`, para que chamadas
+   paralelas não passem juntas pela contagem.
 5. Chat libera imediatamente, mesma RLS do fluxo normal.
 6. Paginação por cursor/keyset (não offset), por ser lista em tempo real via Presence.
 
 ### 4.3 Denúncia e bloqueio
 1. Usuário denuncia → insere em `reports` (`category`, `details` opcional,
    `status = pending`).
-2. Insere automaticamente em `blocks` (linha única, par normalizado) com `report_id`
-   preenchido.
+2. Insere automaticamente em `blocks` (par normalizado, `blocker_id` = denunciante) com
+   `report_id` preenchido. Se o denunciante já tinha um bloqueio voluntário próprio, ele é
+   convertido em bloqueio de denúncia; um bloqueio do outro lado do par não é tocado (ver 3.7).
 3. Denunciado some das listas para o denunciante e vice-versa; chat existente vira
    somente leitura.
 4. Admin revisa a fila de `reports` (`status = pending`) e decide ação diretamente no
@@ -291,8 +317,15 @@ sobreviver a troca de dispositivo nem ser auditável.
 - **`reports` (insert)**: **sem policy de insert direto pelo client** — a denúncia nasce só por
   `fn_report_user` (SECURITY DEFINER: exige conta ativa, limita `details` a 500 caracteres e cria o
   bloqueio junto). Select restrito a admin.
-- **`blocks` (select)**: usuário só vê linhas onde é `user_a_id` ou `user_b_id` — sem
-  isso, a query de descoberta não consegue nem excluir bloqueados da própria lista.
+- **`blocks` (select)**: usuário só vê as linhas que ele mesmo criou (`blocker_id`), para quem foi
+  bloqueado/denunciado não descobrir quem o bloqueou. A checagem de bloqueio na policy de `messages`
+  usa `fn_pair_is_blocked` (`SECURITY DEFINER`), que não depende dessa policy. Admin também lê
+  (necessário para o delete de bloqueio de denúncia).
+  `fn_get_swipe_deck` e `fn_get_available_now` são `SECURITY INVOKER` (a RLS de `profiles`, `swipes`
+  e `matches` continua valendo) e, por isso, **não** podem ler `blocks` direto: sob essa policy só
+  enxergariam os bloqueios criados pelo próprio usuário, e quem foi bloqueado/denunciado continuaria
+  vendo quem o bloqueou (violando o req. 32, "ambos os lados"). Elas excluem bloqueados por
+  `not fn_pair_is_blocked(auth.uid(), p.id)`, que enxerga o par nos dois sentidos.
 - **`blocks` (insert)**: **sem policy de insert direto pelo client** — bloqueio
   (voluntário ou por denúncia) também passa por função `SECURITY DEFINER`. Ver 8.2.
 - **`blocks` (delete)**: `report_id IS NULL` → quem criou o bloqueio (`blocker_id`, nunca o
@@ -440,6 +473,10 @@ Tela interna, mínima, só para `permission_level = admin`:
 - **Denúncias**: a linha mostra "N denúncias pendentes" (ou "Ver denúncias"), que expande um painel
   carregado sob demanda por `fn_admin_get_user_reports` com categoria, texto, data, status e quem
   denunciou. O texto é conteúdo de usuário e só é renderizado como texto.
+- **Conversa da denúncia**: numa denúncia `pending`, "Ver conversa" mostra a troca entre denunciante e
+  denunciado via `fn_admin_get_report_conversation(report_id)` (o client nunca escolhe os dois
+  usuários; o servidor recusa denúncia já revisada). Devolve as **200 mensagens mais recentes**, em
+  ordem cronológica — o abuso recente é o que motiva a denúncia, então o corte descarta as mais antigas.
 - **Ações por linha**: Banir (com modal de confirmação que repete a identidade) e Desbanir, só por
   `fn_admin_ban_user` / `fn_admin_unban_user`. Linhas de admin não oferecem ação (a RPC também
   recusa banir admin).
@@ -453,8 +490,66 @@ Tela interna, mínima, só para `permission_level = admin`:
   continua manual (`update reports set status = 'reviewed'`), e um banimento feito à mão no SQL Editor
   também não revisa nada.
 - **Fora do escopo**: chat do admin com usuários, revisão de denúncias e promoção a admin
-  continuam manuais no Supabase. Usuário banido que queira contestar procura o suporte fora
-  do BoraDuo.
+  continuam manuais no Supabase. Usuário banido que queira contestar segue o procedimento dos
+  Termos de Uso (seção 5, `/termos#moderacao`, e-mail de contato), linkado na tela de banido.
+
+### 6.9 Recuperação de senha (`/forgot-password`, `/reset-password`)
+Duas telas públicas (sem login), sem nenhuma mudança no banco: o fluxo é todo do Supabase Auth.
+- **Entrada**: link "Esqueci minha senha" na tela de login.
+- **`/forgot-password`**: campo de e-mail que chama `supabase.auth.resetPasswordForEmail` com
+  `redirectTo = <origem>/reset-password`. A tela mostra **sempre a mesma confirmação** ("Se existir
+  uma conta com esse e-mail, enviamos um link…"), exista a conta ou não: o Supabase responde
+  sucesso também para e-mail não cadastrado, e a tela não faz nada que revele quais contas existem.
+  Só os erros de limite de envio (429) e de rede aparecem como aviso. Reenvio bloqueado por 60 s.
+- **`/reset-password`**: aberta pelo link do e-mail. Formulário de nova senha + confirmação, com a
+  mesma checklist de requisitos do cadastro (mín. 8, minúscula, maiúscula, número e símbolo), que o
+  servidor também aplica. Ao salvar (`updateUser({ password })`) a tela encerra as **demais** sessões
+  da conta (`signOut({ scope: 'others' })`), avisa "Senha alterada" e leva ao app já conectado.
+  Recusas do servidor têm mensagem própria: senha fraca e "igual à atual". Link expirado, já usado
+  ou acesso direto sem sessão mostram "Link inválido ou expirado" com atalho para pedir outro.
+- **O link entrega uma sessão completa** (o usuário prova ter o e-mail). Por isso o app nunca pode
+  deixá-lo cair direto em `/app` sem passar pela troca: `redirectRecoveryLinkToResetPage()` (roda em
+  `main.tsx`, antes de montar) leva qualquer URL com `type=recovery` no hash para `/reset-password`
+  preservando o hash, e `RecoveryRedirect` faz o mesmo ao receber o evento `PASSWORD_RECOVERY`.
+  Sem isso, com a URL não liberada no painel, o link cairia no Site URL e o usuário seria logado por
+  `/login → /app` sem nunca definir a senha.
+- **Configuração manual no Supabase (não automatizável)**: liberar `<domínio>/reset-password` em
+  *Authentication → URL Configuration → Redirect URLs* (produção e, no desenvolvimento,
+  `http://localhost:5173/reset-password`) e configurar um **SMTP próprio**: o SMTP padrão do Supabase
+  tem limite muito baixo de e-mails por hora e serve também à confirmação de e-mail e a esta
+  recuperação. Ver README (Deploy).
+
+### 6.10 Termos de Uso, Política de Privacidade e aceite (`/termos`, `/privacidade`)
+- **Páginas públicas** (sem login), em PT-BR, orientadas à LGPD, linkadas no rodapé das telas de
+  autenticação, na caixa do cadastro, em Perfil e na tela de banido. Descrevem o que o app realmente faz:
+  Riot ID autodeclarado e não verificado; contato direto sem aceite prévio em "Disponíveis agora"; limites de
+  uso; bloqueio e denúncia; **a moderação pode ler a conversa entre denunciante e denunciado ao analisar uma
+  denúncia**; banimento e como contestá-lo (`#moderacao`); dados tratados, bases legais, operadores
+  (Supabase e Vercel) e transferência internacional, retenção e direitos do art. 18 (`#direitos`).
+  **Não há exclusão de conta no MVP**: a exclusão é por pedido ao e-mail de contato.
+- **Idade mínima: 18 anos** (constante `MIN_AGE`), declarada na caixa de aceite e nos dois textos.
+- **Aceite no cadastro**: caixa obrigatória ("Tenho 18 anos ou mais e aceito os Termos de Uso e a Política
+  de Privacidade"). O `signUp` grava a versão (`TERMS_VERSION`, em `src/lib/legal.ts`) em
+  `user_metadata.terms_version`. Ao **criar o perfil**, o trigger `fn_protect_profile_privileged_columns` lê
+  essa versão de `auth.users` e **recusa** (`terms not accepted`) se ela não existir ou não tiver o formato
+  `AAAA-MM-DD`, mesmo em chamada direta à API; grava `terms_version` e `terms_accepted_at` (= `created_at` do
+  cadastro, do servidor) e **ignora** qualquer `terms_*` enviado no payload do perfil. Como o aceite vem do
+  cadastro, ele sobrevive à confirmação de e-mail (o usuário pode voltar dias depois).
+- **Aceite obrigatório (gate)**: `AppGuard` mostra `TermsGate` no lugar do app para quem tem
+  `terms_version` diferente da vigente (contas anteriores ao aceite ou depois de uma nova versão). Aceitar faz
+  `update({ terms_version })`; o trigger só permite que o **próprio** usuário aceite por si (nem admin forja o
+  aceite de outra conta), a versão nunca volta a nulo e `terms_accepted_at` vira `now()` do servidor quando a
+  versão muda. Quem recusa só pode sair da conta. Conta banida vai para a tela de banido, antes do gate.
+- **Nova versão dos textos**: publicar a mudança e trocar `TERMS_VERSION` e `TERMS_UPDATED_LABEL`; todos veem o
+  gate no próximo acesso.
+- **Identificação e foro**: os textos **não nomeiam um responsável** (pessoa ou razão social) nem elegem um
+  foro. O controlador é "o BoraDuo", identificado apenas pelo e-mail de contato; a lei aplicável é a do Brasil e
+  as disputas vão ao foro competente segundo a lei, inclusive o do domicílio do consumidor. Decisão do produto:
+  submeter à revisão jurídica se isso atende à LGPD (art. 9º, III, prevê a identificação do controlador).
+- **Rascunho e dados de contato**: `LEGAL_DRAFT = true` mostra o aviso "Rascunho em revisão" nas páginas.
+  Os dados que os textos trazem ficam em `LEGAL` (`src/lib/legal.ts`: e-mail de contato e região dos servidores
+  do Supabase); qualquer valor que comece com `[PREENCHER` é destacado na tela. **Antes do deploy**: conferir os
+  dois valores, submeter o texto a **revisão jurídica** e só então `LEGAL_DRAFT = false`.
 
 ## 7. Nota técnica de implementação — Realtime de matches
 
@@ -614,8 +709,10 @@ mensagens ou denúncias por segundo. Para o MVP, o mínimo recomendado:
 **Implementado (Fase 8.2)**: limites no banco, valendo também para chamadas REST diretas —
 trigger `BEFORE INSERT` em `messages` (máx. **30 mensagens/min por usuário**, somando todas as
 conversas) e checagem dentro de `fn_report_user` (máx. **3 denúncias/min por usuário**). Ao
-estourar, o banco levanta `rate_limit_exceeded` e a interface mostra uma mensagem clara. Swipes
-não têm limite no MVP.
+estourar, o banco levanta `rate_limit_exceeded` e a interface mostra uma mensagem clara. O
+**quick match** também tem limite (`fn_create_quick_match`: máx. **3 chats iniciados por minuto e
+15 por 24 h por usuário**, seção 4.2), para uma conta não encher a lista de conversas de todos os
+disponíveis. Swipes não têm limite no MVP.
 
 **Risco aceito conscientemente — Leaked password protection**: a checagem de senhas vazadas
 (HaveIBeenPwned) do Supabase Auth é recurso do plano Pro, indisponível no free tier. Fica de
@@ -695,7 +792,7 @@ Módulo: Descoberta — Disponíveis agora
 17. O sistema deve listar perfis com is_available=true e presença ativa (Realtime) simultaneamente
 18. O sistema deve permitir filtrar a lista por role e rank (faixa), sem filtro de horário
 19. O sistema deve paginar a lista por cursor/keyset
-20. O sistema deve criar um match com origin=quick_start ao clicar em um perfil da lista, sem exigir reciprocidade, e navegar direto ao chat com confirmação sóbria (toast)
+20. O sistema deve criar um match com origin=quick_start ao clicar em um perfil da lista, sem exigir reciprocidade, e navegar direto ao chat com confirmação sóbria (toast), limitando a 3 chats iniciados por minuto e 15 por 24 h por usuário (acima disso, mostra um aviso e não cria o match)
 21. O sistema deve exibir estado vazio quando não houver ninguém disponível com os filtros aplicados
 
 Módulo: Matches e Chat
@@ -732,5 +829,14 @@ Módulo: Notificações
 Módulo: Estados Globais
 45. O sistema deve exibir skeleton screens (não spinner genérico) em toda tela de lista durante carregamento
 46. O sistema deve exibir mensagem de erro de rede com ação de retry
+
+Módulo: Recuperação de senha
+47. O sistema deve permitir pedir a recuperação de senha pelo e-mail a partir da tela de login, sempre mostrando a mesma confirmação, exista ou não conta com o e-mail informado
+48. O sistema deve permitir definir uma nova senha pelo link recebido por e-mail, aplicando os mesmos requisitos de senha do cadastro, encerrando as demais sessões da conta e recusando links expirados ou inválidos com opção de pedir outro
+
+Módulo: Termos, privacidade e aceite
+49. O sistema deve publicar os Termos de Uso e a Política de Privacidade em páginas públicas, acessíveis do cadastro, do login, do Perfil e da tela de banido
+50. O sistema deve exigir, no cadastro, o aceite dos Termos e da Política com a declaração de idade mínima de 18 anos, registrar a versão aceita e a data (do servidor) no perfil e recusar, no servidor, a criação de perfil sem esse aceite
+51. O sistema deve bloquear o uso do app para quem não aceitou a versão vigente dos Termos e da Política (contas anteriores ao aceite ou após nova versão), exibindo uma tela de aceite obrigatório e permitindo sair da conta
 ```
 

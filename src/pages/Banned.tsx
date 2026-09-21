@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { AuthLayout } from '../components/auth/AuthLayout'
 import { focusRing } from '../components/formStyles'
 import { LockIcon } from '../components/icons'
@@ -84,7 +84,11 @@ export function Banned() {
           {profile.banned_at && <> O banimento foi aplicado em {dateFormat.format(new Date(profile.banned_at))}.</>}
         </p>
         <p className="mt-3 text-sm leading-5 text-ink-muted">
-          Se você acredita que isso foi um engano, fale com a equipe do BoraDuo.
+          Se você acredita que isso foi um engano, veja como contestar nos{' '}
+          <Link to="/termos#moderacao" target="_blank" rel="noopener noreferrer" className="font-medium text-match hover:underline">
+            Termos de Uso
+          </Link>
+          .
         </p>
 
         <button
